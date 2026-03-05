@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import type { FinanceSummary, Order, ReviewMetrics, Phase1Metrics } from '@/types'
+import type { FinanceSummary, Order, ReviewMetrics } from '@/types'
 import {
   TrendingUp,
   ShoppingCart,
@@ -83,7 +83,6 @@ function StatCard({
 export default function DashboardPage() {
   const [summary, setSummary] = useState<FinanceSummary | null>(null)
   const [reviewMetrics, setReviewMetrics] = useState<ReviewMetrics | null>(null)
-  const [phase1Metrics, setPhase1Metrics] = useState<Phase1Metrics | null>(null)
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -92,16 +91,14 @@ export default function DashboardPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [sumRes, ordersRes, metricsRes, phase1Res] = await Promise.all([
+        const [sumRes, ordersRes, metricsRes] = await Promise.all([
           financeAPI.summary('month'),
           ordersAPI.list({ ordering: '-created_at', page_size: 8 }),
           productsAPI.reviewMetrics(),
-          productsAPI.phase1Metrics(),
         ])
         setSummary(sumRes.data)
         setRecentOrders(ordersRes.data.results ?? ordersRes.data)
         setReviewMetrics(metricsRes.data)
-        setPhase1Metrics(phase1Res.data)
       } catch (e) {
         console.error(e)
       } finally {
@@ -277,96 +274,6 @@ export default function DashboardPage() {
             iconBgColor="bg-violet-50"
           />
         </div>
-      </div>
-
-      {/* Phase 1 Metrics - 审核效率指标 */}
-      <div>
-        <h2 className="text-lg font-semibold text-neutral-900 mb-5">第 1 阶段业务指标（审核效率）</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard
-            title="当日可审核数"
-            value={phase1Metrics?.review_ready_daily_count ?? 0}
-            icon={Package}
-            iconColor="text-violet-600"
-            iconBgColor="bg-violet-50"
-            sub="录入完成待审核商品数"
-          />
-          <StatCard
-            title="审核员日处理量"
-            value={phase1Metrics?.review_processed_daily_count ?? 0}
-            icon={CheckCircle}
-            iconColor="text-emerald-600"
-            iconBgColor="bg-emerald-50"
-            sub="审核员当日通过/驳回数"
-          />
-          <StatCard
-            title="中位处理时长"
-            value={`${phase1Metrics?.median_hours_to_review_ready ?? 0} 小时`}
-            icon={Clock}
-            iconColor="text-amber-600"
-            iconBgColor="bg-amber-50"
-            sub="录入到可审核中位时长"
-          />
-          <StatCard
-            title="窗口样本数"
-            value={phase1Metrics?.review_ready_window_count ?? 0}
-            icon={TrendingUp}
-            iconColor="text-cyan-600"
-            iconBgColor="bg-cyan-50"
-            sub="用于计算中位时长的样本数"
-          />
-        </div>
-
-        {/* 7 天趋势图 */}
-        {phase1Metrics?.daily_trend && phase1Metrics.daily_trend.length > 0 && (
-          <Card className="mt-5 border-neutral-200/60 rounded-2xl">
-            <CardHeader className="border-b border-neutral-100 px-6 py-4">
-              <CardTitle className="text-base font-semibold text-neutral-900">近 7 天趋势</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-7 gap-3">
-                {phase1Metrics.daily_trend.map((day) => (
-                  <div key={day.date} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-neutral-50 hover:bg-neutral-100 transition-colors">
-                    <span className="text-xs text-neutral-500">{day.date.slice(5)}</span>
-                    <div className="w-full flex flex-col gap-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-neutral-500">可审核</span>
-                        <span className="font-semibold text-violet-600">{day.review_ready_count}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-neutral-500">已处理</span>
-                        <span className="font-semibold text-emerald-600">{day.review_processed_count}</span>
-                      </div>
-                    </div>
-                    {/* 简易柱状图 */}
-                    <div className="w-full flex gap-1 h-16 items-end justify-center">
-                      <div
-                        className="w-4 bg-violet-500 rounded-t transition-all"
-                        style={{ height: `${Math.max(8, (day.review_ready_count / Math.max(1, ...phase1Metrics.daily_trend.map(d => d.review_ready_count))) * 100)}%` }}
-                        title={`可审核：${day.review_ready_count}`}
-                      />
-                      <div
-                        className="w-4 bg-emerald-500 rounded-t transition-all"
-                        style={{ height: `${Math.max(8, (day.review_processed_count / Math.max(1, ...phase1Metrics.daily_trend.map(d => d.review_processed_count))) * 100)}%` }}
-                        title={`已处理：${day.review_processed_count}`}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center justify-center gap-6 mt-4 text-xs text-neutral-500">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-violet-500" />
-                  <span>可审核数</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-emerald-500" />
-                  <span>已处理数</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Recent Orders */}

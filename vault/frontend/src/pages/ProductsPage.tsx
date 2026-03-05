@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { aiAPI, productsAPI, categoriesAPI, operationalTagsAPI } from '@/api/endpoints'
 import { Label } from '@/components/ui/label'
-import type { MasterSKU, ProductStats, Category, Phase1Metrics, OperationalTag } from '@/types'
+import type { MasterSKU, ProductStats, Category, OperationalTag } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -553,7 +553,6 @@ export default function ProductsPage() {
   // Data
   const [products, setProducts] = useState<MasterSKU[]>([])
   const [stats, setStats] = useState<ProductStats | null>(null)
-  const [phase1Metrics, setPhase1Metrics] = useState<Phase1Metrics | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [operationalTags, setOperationalTags] = useState<OperationalTag[]>([])
   const [count, setCount] = useState(0)
@@ -792,15 +791,6 @@ export default function ProductsPage() {
     }
   }, [])
 
-  const loadPhase1Metrics = useCallback(async () => {
-    try {
-      const res = await productsAPI.phase1Metrics()
-      setPhase1Metrics(res.data)
-    } catch (e) {
-      console.error(e)
-    }
-  }, [])
-
   const loadCategories = useCallback(async () => {
     try {
       const res = await categoriesAPI.list()
@@ -827,8 +817,7 @@ export default function ProductsPage() {
     loadStats()
     loadCategories()
     loadOperationalTags()
-    loadPhase1Metrics()
-  }, [loadStats, loadCategories, loadOperationalTags, loadPhase1Metrics])
+  }, [loadStats, loadCategories, loadOperationalTags])
 
   // View mode persistence
   useEffect(() => {
@@ -1372,7 +1361,6 @@ export default function ProductsPage() {
       setSelectAll(false)
       loadProducts()
       loadStats()
-      loadPhase1Metrics()
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? '批量提交审核失败'
       showToast(msg)
@@ -1549,34 +1537,6 @@ export default function ProductsPage() {
           <StatCard label="缺阿语" value={stats.missing_title_ar} active={!!filters.missing_title_ar} color="text-red-500" onClick={() => { setFilters({ ...DEFAULT_FILTERS, missing_title_ar: true }); setPage(1) }} />
           <StatCard label="缺图片" value={stats.missing_image} active={!!filters.missing_image} color="text-red-500" onClick={() => { setFilters({ ...DEFAULT_FILTERS, missing_image: true }); setPage(1) }} />
         </div>
-      )}
-
-      {phase1Metrics && (
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <div className="text-sm font-semibold text-neutral-800">第1阶段业务指标</div>
-                <div className="text-xs text-neutral-500 mt-0.5">用于跟踪审核员录入效率（方案A）</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">当日可审核：{phase1Metrics.review_ready_daily_count}</Badge>
-                <Badge variant="secondary">审核员当日处理：{phase1Metrics.review_processed_daily_count}</Badge>
-                <Badge variant="secondary">窗口样本：{phase1Metrics.review_ready_window_count}</Badge>
-                <Badge variant="success">中位时长：{phase1Metrics.median_hours_to_review_ready} 小时</Badge>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 md:grid-cols-7 gap-2">
-              {phase1Metrics.daily_trend.map((d) => (
-                <div key={d.date} className="rounded-lg border border-neutral-200 p-2 bg-neutral-50">
-                  <div className="text-[11px] text-neutral-500">{d.date.slice(5)}</div>
-                  <div className="text-xs text-neutral-700 mt-1">可审核 {d.review_ready_count}</div>
-                  <div className="text-xs text-neutral-700">已处理 {d.review_processed_count}</div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       {/* Filter Bar */}

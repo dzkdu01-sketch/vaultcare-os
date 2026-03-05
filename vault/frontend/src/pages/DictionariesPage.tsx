@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Plus, RefreshCw, Edit2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
-type DictType = 'category' | 'tag' | 'brand' | 'supplier'
+type DictType = 'category' | 'tag' | 'brand' | 'supplier' | 'banned_word'
 type DictionariesPageMode = 'all' | 'tags' | 'categories'
 
 interface DictionariesPageProps {
@@ -49,7 +49,10 @@ export default function DictionariesPage({ mode = 'all' }: DictionariesPageProps
 
   // S2-W3-3: 脏词管理状态
   const [bannedWords, setBannedWords] = useState<BannedWord[]>([])
-  const [bannedWordForm, setBannedWordForm] = useState({ word: '', category: 'other' as const })
+  const [bannedWordForm, setBannedWordForm] = useState<{ word: string; category: BannedWord['category'] }>({
+    word: '',
+    category: 'other',
+  })
   const [editingBannedWordId, setEditingBannedWordId] = useState<number | null>(null)
 
   const loadAll = useCallback(async () => {
@@ -306,7 +309,7 @@ export default function DictionariesPage({ mode = 'all' }: DictionariesPageProps
     if (!canEdit) return
     resetBannedWordForm()
     setDialogOpen(true)
-    setDictType('banned_word' as DictType)
+    setDictType('banned_word')
   }
 
   const openEditBannedWord = (item: BannedWord) => {
@@ -314,7 +317,7 @@ export default function DictionariesPage({ mode = 'all' }: DictionariesPageProps
     setEditingBannedWordId(item.id)
     setBannedWordForm({ word: item.word, category: item.category })
     setDialogOpen(true)
-    setDictType('banned_word' as DictType)
+    setDictType('banned_word')
   }
 
   const handleSaveBannedWord = async () => {

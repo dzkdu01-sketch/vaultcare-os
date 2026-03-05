@@ -37,6 +37,7 @@
 | BL-20260305-004 | ops | P2 | pending | 完成生产部署配置（Nginx + Gunicorn） | 不调整业务流程 | 生产部署文档和运行检查通过 | `docs/status/current-status.md` |
 | BL-20260305-005 | bugfix | P1 | done | 补齐 Sprint5 未勾项（供应商 Tab + 移动端行为） | 不做 F18 真实凭据联调 | 供应商映射可增改删；<768 强制卡片视图；移动端筛选可折叠且不占半屏；前端构建通过 | `docs/status/current-status.md`, `frontend/src/pages/ProductsPage.tsx` |
 | BL-20260305-006 | bugfix | P1 | pending | 补齐移动端“筛选折叠展开”冒烟截图证据 | 不改业务逻辑 | 390x844 下点击“筛选”可折叠展开，且展开面板高度受控并有截图 | `docs/status/current-status.md`, `frontend/src/pages/ProductsPage.tsx` |
+| BL-20260305-007 | feature | P1 | done | 去掉看板和商品管理中“第 1 阶段业务指标（审核效率）”模块 | 不删除后端接口实现 | 两页面均不展示审核效率模块；前端不再调用 `phase1_metrics`；主要页面可正常加载 | `frontend/src/pages/DashboardPage.tsx`, `frontend/src/pages/ProductsPage.tsx`, `frontend/src/api/endpoints.ts` |
 
 ## 新增事项模板（复制）
 

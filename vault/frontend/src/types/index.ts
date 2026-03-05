@@ -216,18 +216,6 @@ export interface ReviewMetrics {
   pending_review_count: number
 }
 
-export interface Phase1Metrics {
-  review_ready_daily_count: number
-  review_ready_window_count: number
-  median_hours_to_review_ready: number
-  review_processed_daily_count: number
-  daily_trend: Array<{
-    date: string
-    review_ready_count: number
-    review_processed_count: number
-  }>
-}
-
 // S2-W3-3: 脏词字典类型
 export interface BannedWord {
   id: number

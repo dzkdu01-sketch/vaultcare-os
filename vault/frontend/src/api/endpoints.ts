@@ -49,7 +49,6 @@ export const productsAPI = {
     api.post(`/products/${id}/emergency_publish/`, { reason }),
   delist: (id: number) => api.post(`/products/${id}/delist/`),
   reviewMetrics: () => api.get('/products/review_metrics/'),
-  phase1Metrics: () => api.get('/products/phase1_metrics/'),
   exportCsv: (params?: Record<string, unknown>) =>
     api.get('/products/export/', { params, responseType: 'blob' }),
   uploadImage: (file: File) => {

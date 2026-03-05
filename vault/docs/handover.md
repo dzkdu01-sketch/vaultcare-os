@@ -38,6 +38,8 @@ See `docs/reference/accounts.md`.
 
 ## Latest active handover snapshot
 
+- **本次**：录入商品/手动新增/AI 新品 页面全屏布局修复（ProductEntryPage、ProductNewManualPage、ProductNewAIPage 主容器改为 `w-full`）；文档已更新；代码已推送，VPS 部署需在服务器拉取后重新构建前端或执行网页终端部署脚本。
+- `docs/deploy/VPS-DEPLOYMENT-HANDOVER-2026-03-05.md` (VPS 部署交接：**部署成功** ✅ - Hostinger + CloudPanel 完整部署流程、HTTP 502 修复、软链接 `.conf` 后缀问题、下次部署注意事项)
 - `docs/handover/auto/session-20260305-1129.md` (文档治理闭环 + 跨 IDE 执行器 v1.1 + 全局 collab 别名与自动 bridge 已完成)
 - `docs/handover/auto/session-20260304-2335.md` (W1 QA 冒烟执行版完成：服务恢复、Tab/动态列/抽屉链路验证，新增 Bug-09/10)
 - `docs/handover/auto/session-20260304-2326.md` (W1 首版落地：四大 Tab、动态列持久化、宽抽屉未保存拦截与“保存并下一条”已可用)

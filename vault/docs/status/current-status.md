@@ -4,6 +4,8 @@
 > owner：项目执行负责人（待指定）
 > last_verified_at：2026-03-05
 
+**近期修复（2026-03-05）**：录入商品、手动新增商品、AI 辅助上线新品 三页主区域由 `max-w-2xl`/`max-w-3xl` 改为 `w-full`，宽屏下全屏展示。
+
 ---
 
 ## 已完成 Sprint
@@ -555,8 +557,27 @@ Swagger UI 地址（启动后访问）：`http://localhost:8000/api/schema/swagg
 
 ## 其他待办（P2）
 
-- [ ] 生产部署配置（Nginx + Gunicorn）
-- [ ] 执行 `pip install drf-spectacular` 已完成，需重启后端服务生效
+- [x] 生产部署配置（Nginx + Gunicorn）— **2026-03-05 部署成功** ✅
+- [x] 执行 `pip install drf-spectacular` 已完成，需重启后端服务生效
+
+### VPS 部署状态（2026-03-05）✅
+
+**Hostinger VPS (72.61.140.40) 部署成功**
+
+| 项 | 状态 | 说明 |
+|----|------|------|
+| 代码部署 | ✅ 完成 | 通过网页终端脚本部署 |
+| 后端服务 | ✅ 运行中 | Gunicorn 监听 127.0.0.1:8000 |
+| 前端构建 | ✅ 完成 | 671.90 kB，已部署到 /var/www/vaultcare/frontend/dist |
+| Nginx 配置 | ✅ 完成 | 监听 80 端口，代理 API 到 Gunicorn |
+| 管理员账户 | ✅ 创建 | 用户名：admin |
+| 网站访问 | ✅ 可访问 | http://72.61.140.40 |
+
+**待办**：
+- [ ] 配置 HTTPS（域名 + Let's Encrypt）
+- [ ] 配置域名访问（可选）
+
+详细部署记录：`docs/deploy/VPS-DEPLOYMENT-HANDOVER-2026-03-05.md`
 
 ---
 

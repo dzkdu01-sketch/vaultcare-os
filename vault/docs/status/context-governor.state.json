@@ -1,0 +1,13 @@
+﻿{
+    "loop_count":  18,
+    "last_rotation_at":  "2026-03-04T12:17:13",
+    "rotation_count":  9,
+    "last_rotation_reason":  [
+                                 "context_pct",
+                                 "turn_count",
+                                 "session_minutes"
+                             ],
+    "last_warn_at":  "2026-03-04T12:17:13",
+    "started_at":  "2026-03-04T11:45:31",
+    "last_session_id":  "force-rotate-v16"
+}

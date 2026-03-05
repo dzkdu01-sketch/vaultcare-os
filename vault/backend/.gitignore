@@ -1,0 +1,9 @@
+# Python / Django local artifacts
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local DB (MVP)
+db.sqlite3
+

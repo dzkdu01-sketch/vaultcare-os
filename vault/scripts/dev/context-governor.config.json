@@ -1,0 +1,50 @@
+{
+  "poll_seconds": 20,
+  "warn_context_pct": 68,
+  "rotate_context_pct": 75,
+  "max_turn_count": 26,
+  "max_session_minutes": 45,
+  "cooldown_minutes_after_rotate": 3,
+  "auto_open_next_chat": true,
+  "auto_open_command": "Start-Process \"cursor://new-chat\"",
+  "auto_seed_next_chat_prompt": true,
+  "seed_prompt_wait_seconds": 2,
+  "seed_prompt_submit": false,
+  "seed_prompt_activate_window": true,
+  "cursor_window_title_contains": "Cursor",
+  "telemetry_inference": {
+    "enabled": true,
+    "transcript_dir": "C:/Users/杜兆凯/.cursor/projects/d-cursor-vault/agent-transcripts",
+    "read_latest_transcript": true,
+    "transcript_fresh_hours": 6,
+    "context_estimator": {
+      "base_pct": 8,
+      "per_turn_pct": 2.2,
+      "per_minute_pct": 0.35,
+      "max_pct": 95
+    }
+  },
+  "summary_inference": {
+    "enabled": true,
+    "roundtable_sessions_dir": "docs/roundtable/sessions",
+    "read_latest_session_markdown": true,
+    "latest_session_fresh_hours": 168,
+    "max_items_per_section": 5,
+    "use_relevance_routing": true,
+    "relevance_scan_top_n": 12,
+    "overwrite_with_source": true,
+    "table_data_row_min_cells": 2,
+    "inject_status_blockers": true,
+    "max_status_blockers": 5
+  },
+  "paths": {
+    "telemetry_file": "docs/status/context-telemetry.json",
+    "state_file": "docs/status/context-governor.state.json",
+    "next_prompt_file": "docs/status/next-session.prompt.md",
+    "handover_dir": "docs/handover/auto",
+    "rotation_log_file": "docs/flywheel/context-rotation-log.jsonl",
+    "current_status_file": "docs/status/current-status.md",
+    "handover_file": "docs/handover.md",
+    "process_registry_file": "docs/process-registry.md"
+  }
+}

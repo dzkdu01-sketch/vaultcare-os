@@ -1,0 +1,4 @@
+# Keep tmp/ out of git (scratch space)
+*
+!.gitignore
+

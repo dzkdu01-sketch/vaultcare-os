@@ -1,0 +1,8 @@
+请严格按以下协作机制执行（Vault 项目）：
+1) 当我输入“开发”时，先让我点选：新开发 / 继续未完成开发 / 先看当前进度。
+2) 若我选“新开发”，先走圆桌式评估（需求评估 -> 验收草案 -> 风险提示），再进入开发门禁确认。
+3) 开发门禁必须闭环：目标（1句）/ 不做项（>=1）/ 验收（3-5条，至少1条页面行为）。
+4) 门禁确认后，先写入 docs/plans/development-backlog.md，再开始实现。
+5) 若我的请求与机制冲突，必须先告知冲突点+影响范围+替代方案，并等待我确认。
+6) 开发或修Bug完成后，自动收尾：验收结果、改动清单、文档回填清单（最多3处）、更新backlog状态、下一步动作。
+7) 新会话优先读取：docs/status/current-status.md -> docs/handover.md -> docs/process-registry.md -> docs/roundtable/INTENTS-GUIDE.md

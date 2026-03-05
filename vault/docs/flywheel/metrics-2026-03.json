@@ -1,0 +1,907 @@
+[
+  {
+    "metadata": {
+      "collected_at": "2026-03-03T21:25:52.446057",
+      "week_number": 10,
+      "month": 3,
+      "year": 2026
+    },
+    "intent_usage": {
+      "total_sessions": 5,
+      "intent_counts": {
+        "/启动": 1,
+        "/开发": 4,
+        "/Bug": 3,
+        "/圆桌": 4,
+        "/审查": 4,
+        "/测试": 4,
+        "/文档": 4,
+        "/进度": 3,
+        "/解释": 1,
+        "/调试": 4,
+        "/重构": 3,
+        "/提问": 3,
+        "/检查": 3,
+        "/部署": 2,
+        "/总结": 3,
+        "//意图": 1
+      },
+      "intent_details": {
+        "/启动": [
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 1
+          }
+        ],
+        "/开发": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/Bug": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/圆桌": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/审查": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/测试": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/文档": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/进度": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/解释": [
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 1
+          }
+        ],
+        "/调试": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 2
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/重构": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/提问": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/检查": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/部署": [
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/总结": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "//意图": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          }
+        ]
+      }
+    },
+    "bug_stats": {
+      "P0": 3,
+      "P1": 5,
+      "P2": 0,
+      "P3": 0,
+      "total": 8,
+      "fixed": 0,
+      "bugs": [
+        {
+          "id": "Bug-01",
+          "description": "：手动新增路由错误，需新建 ProductNewManualPage.tsx",
+          "priority": "P0",
+          "status": "open"
+        },
+        {
+          "id": "Bug-02",
+          "description": "：AI上线图片全部丢失（image_urls 硬编码空数组）",
+          "priority": "P0",
+          "status": "open"
+        },
+        {
+          "id": "Bug-03",
+          "description": "：AI上线直接上架，应改为草稿（is_active",
+          "priority": "P0",
+          "status": "open"
+        },
+        {
+          "id": "Bug-04",
+          "description": "：AI上线品类字段错误（category 文本 vs primary_category FK）",
+          "priority": "P1",
+          "status": "open"
+        },
+        {
+          "id": "Bug-05",
+          "description": "：供应商Tab只读，需增加绑定/编辑/删除功能",
+          "priority": "P1",
+          "status": "open"
+        },
+        {
+          "id": "Bug-06",
+          "description": "：ordering_fields 缺少 updated_at",
+          "priority": "P1",
+          "status": "open"
+        },
+        {
+          "id": "Bug-07",
+          "description": "：audience_tags 筛选前后端均未接通",
+          "priority": "P1",
+          "status": "open"
+        },
+        {
+          "id": "Bug-08",
+          "description": "：统计条快速过滤前后端均未接通",
+          "priority": "P1",
+          "status": "open"
+        }
+      ]
+    },
+    "doc_updates": {
+      "total_docs": 63,
+      "updated_today": 63,
+      "updated_this_week": 0,
+      "updated_this_month": 0,
+      "recent_updates": [
+        {
+          "file": "roundtable\\sessions\\2026-03-03-roundtable-2.md",
+          "mtime": "2026-03-03T13:04:57.785810",
+          "mtime_display": "2026-03-03 13:04"
+        },
+        {
+          "file": "roundtable\\sessions\\2026-03-03-product-order-brainstorming.md",
+          "mtime": "2026-03-03T13:04:57.786808",
+          "mtime_display": "2026-03-03 13:04"
+        },
+        {
+          "file": "roundtable\\sessions\\2026-03-03-intent-system.md",
+          "mtime": "2026-03-03T20:55:38.980927",
+          "mtime_display": "2026-03-03 20:55"
+        },
+        {
+          "file": "roundtable\\sessions\\2026-03-03-integration.md",
+          "mtime": "2026-03-03T21:12:45.368774",
+          "mtime_display": "2026-03-03 21:12"
+        },
+        {
+          "file": "roundtable\\sessions\\2026-03-03-ai-collab-efficiency.md",
+          "mtime": "2026-03-03T20:14:42.185027",
+          "mtime_display": "2026-03-03 20:14"
+        },
+        {
+          "file": "roundtable\\intents\\flywheel.md",
+          "mtime": "2026-03-03T21:23:55.727208",
+          "mtime_display": "2026-03-03 21:23"
+        },
+        {
+          "file": "roundtable\\intents\\custom-template.md",
+          "mtime": "2026-03-03T20:52:58.527821",
+          "mtime_display": "2026-03-03 20:52"
+        },
+        {
+          "file": "roundtable\\intents\\15-总结.md",
+          "mtime": "2026-03-03T20:51:10.845864",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\14-部署.md",
+          "mtime": "2026-03-03T20:51:08.679205",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\13-检查.md",
+          "mtime": "2026-03-03T20:51:06.590941",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\12-提问.md",
+          "mtime": "2026-03-03T20:51:04.553488",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\11-重构.md",
+          "mtime": "2026-03-03T20:51:02.544519",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\10-调试.md",
+          "mtime": "2026-03-03T20:51:00.601539",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\09-解释.md",
+          "mtime": "2026-03-03T20:50:58.652642",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\08-进度.md",
+          "mtime": "2026-03-03T20:50:56.173388",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\07-文档.md",
+          "mtime": "2026-03-03T20:50:53.291351",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\06-测试.md",
+          "mtime": "2026-03-03T20:50:51.186168",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\05-审查.md",
+          "mtime": "2026-03-03T20:50:49.545552",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\04-圆桌.md",
+          "mtime": "2026-03-03T20:50:48.026144",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\03-Bug.md",
+          "mtime": "2026-03-03T20:50:46.595365",
+          "mtime_display": "2026-03-03 20:50"
+        }
+      ],
+      "by_category": {
+        "archive": 4,
+        "context": 4,
+        "roundtable": 42,
+        "status": 1,
+        "modules": 2
+      }
+    },
+    "summary": {
+      "most_used_intent": "/开发",
+      "most_used_intent_count": 4,
+      "total_intents_used": 47,
+      "bug_fix_rate": 0.0,
+      "open_bugs": 8,
+      "doc_active_rate": 0.0,
+      "docs_updated_this_week": 0
+    }
+  },
+  {
+    "metadata": {
+      "collected_at": "2026-03-03T21:27:33.061747",
+      "week_number": 10,
+      "month": 3,
+      "year": 2026
+    },
+    "intent_usage": {
+      "total_sessions": 5,
+      "intent_counts": {
+        "/启动": 1,
+        "/开发": 4,
+        "/Bug": 3,
+        "/圆桌": 4,
+        "/审查": 4,
+        "/测试": 4,
+        "/文档": 4,
+        "/进度": 3,
+        "/解释": 1,
+        "/调试": 4,
+        "/重构": 3,
+        "/提问": 3,
+        "/检查": 3,
+        "/部署": 2,
+        "/总结": 3,
+        "//意图": 1
+      },
+      "intent_details": {
+        "/启动": [
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 1
+          }
+        ],
+        "/开发": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/Bug": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/圆桌": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/审查": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/测试": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/文档": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 3
+          }
+        ],
+        "/进度": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/解释": [
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 1
+          }
+        ],
+        "/调试": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 2
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/重构": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/提问": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/检查": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/部署": [
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "/总结": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          },
+          {
+            "file": "2026-03-03-intent-system.md",
+            "count": 2
+          }
+        ],
+        "//意图": [
+          {
+            "file": "2026-03-03-integration.md",
+            "count": 1
+          }
+        ]
+      }
+    },
+    "bug_stats": {
+      "P0": 3,
+      "P1": 5,
+      "P2": 0,
+      "P3": 0,
+      "total": 8,
+      "fixed": 0,
+      "bugs": [
+        {
+          "id": "Bug-01",
+          "description": "：手动新增路由错误，需新建 ProductNewManualPage.tsx",
+          "priority": "P0",
+          "status": "open"
+        },
+        {
+          "id": "Bug-02",
+          "description": "：AI上线图片全部丢失（image_urls 硬编码空数组）",
+          "priority": "P0",
+          "status": "open"
+        },
+        {
+          "id": "Bug-03",
+          "description": "：AI上线直接上架，应改为草稿（is_active",
+          "priority": "P0",
+          "status": "open"
+        },
+        {
+          "id": "Bug-04",
+          "description": "：AI上线品类字段错误（category 文本 vs primary_category FK）",
+          "priority": "P1",
+          "status": "open"
+        },
+        {
+          "id": "Bug-05",
+          "description": "：供应商Tab只读，需增加绑定/编辑/删除功能",
+          "priority": "P1",
+          "status": "open"
+        },
+        {
+          "id": "Bug-06",
+          "description": "：ordering_fields 缺少 updated_at",
+          "priority": "P1",
+          "status": "open"
+        },
+        {
+          "id": "Bug-07",
+          "description": "：audience_tags 筛选前后端均未接通",
+          "priority": "P1",
+          "status": "open"
+        },
+        {
+          "id": "Bug-08",
+          "description": "：统计条快速过滤前后端均未接通",
+          "priority": "P1",
+          "status": "open"
+        }
+      ]
+    },
+    "doc_updates": {
+      "total_docs": 64,
+      "updated_today": 64,
+      "updated_this_week": 64,
+      "updated_this_month": 64,
+      "recent_updates": [
+        {
+          "file": "roundtable\\sessions\\2026-03-03-roundtable-2.md",
+          "mtime": "2026-03-03T13:04:57.785810",
+          "mtime_display": "2026-03-03 13:04"
+        },
+        {
+          "file": "roundtable\\sessions\\2026-03-03-product-order-brainstorming.md",
+          "mtime": "2026-03-03T13:04:57.786808",
+          "mtime_display": "2026-03-03 13:04"
+        },
+        {
+          "file": "roundtable\\sessions\\2026-03-03-intent-system.md",
+          "mtime": "2026-03-03T20:55:38.980927",
+          "mtime_display": "2026-03-03 20:55"
+        },
+        {
+          "file": "roundtable\\sessions\\2026-03-03-integration.md",
+          "mtime": "2026-03-03T21:12:45.368774",
+          "mtime_display": "2026-03-03 21:12"
+        },
+        {
+          "file": "roundtable\\sessions\\2026-03-03-ai-collab-efficiency.md",
+          "mtime": "2026-03-03T20:14:42.185027",
+          "mtime_display": "2026-03-03 20:14"
+        },
+        {
+          "file": "roundtable\\intents\\flywheel.md",
+          "mtime": "2026-03-03T21:23:55.727208",
+          "mtime_display": "2026-03-03 21:23"
+        },
+        {
+          "file": "roundtable\\intents\\custom-template.md",
+          "mtime": "2026-03-03T20:52:58.527821",
+          "mtime_display": "2026-03-03 20:52"
+        },
+        {
+          "file": "roundtable\\intents\\15-总结.md",
+          "mtime": "2026-03-03T20:51:10.845864",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\14-部署.md",
+          "mtime": "2026-03-03T20:51:08.679205",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\13-检查.md",
+          "mtime": "2026-03-03T20:51:06.590941",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\12-提问.md",
+          "mtime": "2026-03-03T20:51:04.553488",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\11-重构.md",
+          "mtime": "2026-03-03T20:51:02.544519",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\10-调试.md",
+          "mtime": "2026-03-03T20:51:00.601539",
+          "mtime_display": "2026-03-03 20:51"
+        },
+        {
+          "file": "roundtable\\intents\\09-解释.md",
+          "mtime": "2026-03-03T20:50:58.652642",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\08-进度.md",
+          "mtime": "2026-03-03T20:50:56.173388",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\07-文档.md",
+          "mtime": "2026-03-03T20:50:53.291351",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\06-测试.md",
+          "mtime": "2026-03-03T20:50:51.186168",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\05-审查.md",
+          "mtime": "2026-03-03T20:50:49.545552",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\04-圆桌.md",
+          "mtime": "2026-03-03T20:50:48.026144",
+          "mtime_display": "2026-03-03 20:50"
+        },
+        {
+          "file": "roundtable\\intents\\03-Bug.md",
+          "mtime": "2026-03-03T20:50:46.595365",
+          "mtime_display": "2026-03-03 20:50"
+        }
+      ],
+      "by_category": {
+        "archive": 4,
+        "context": 4,
+        "flywheel": 1,
+        "roundtable": 42,
+        "status": 1,
+        "modules": 2
+      }
+    },
+    "summary": {
+      "most_used_intent": "/开发",
+      "most_used_intent_count": 4,
+      "total_intents_used": 47,
+      "bug_fix_rate": 0.0,
+      "open_bugs": 8,
+      "doc_active_rate": 100.0,
+      "docs_updated_this_week": 64
+    }
+  },
+  {
+    "metadata": {
+      "collected_at": "2026-03-04T12:38:00",
+      "week_number": 10,
+      "month": 3,
+      "year": 2026,
+      "source": "manual-flywheel-update"
+    },
+    "engineering_loop": {
+      "focus": "PIM-F8 + PIM-F18",
+      "implemented_actions": [
+        "site_operation publish/revoke/retry_sync",
+        "failure-isolation test added"
+      ],
+      "test_evidence": {
+        "suite": "sites.tests.test_f18_site_operations",
+        "passed": 5,
+        "total": 5
+      },
+      "docs_synced": [
+        "docs/status/current-status.md",
+        "docs/process-registry.md",
+        "docs/quality/system-functional-matrix.md",
+        "docs/handover/auto/session-20260304-1238.md"
+      ]
+    },
+    "summary": {
+      "most_used_intent": "/开发",
+      "bug_fix_rate": 100.0,
+      "open_bugs": 0,
+      "f18_flow_pass_rate": 100.0,
+      "docs_consistency_rate": 100.0
+    }
+  },
+  {
+    "metadata": {
+      "collected_at": "2026-03-04T12:44:00",
+      "week_number": 10,
+      "month": 3,
+      "year": 2026,
+      "source": "manual-flywheel-update"
+    },
+    "engineering_loop": {
+      "focus": "PIM-F18 frontend evidence",
+      "blocking_event": "pim_mastersku.review_status column missing in local DB",
+      "auto_recovery_action": "python manage.py migrate",
+      "ui_regression": {
+        "page": "/distributor-selections",
+        "validated_points": [
+          "failure toast visible",
+          "mapping failed status visible",
+          "retry button enabled on failed",
+          "retry triggers backend request"
+        ]
+      },
+      "backend_log_evidence": {
+        "endpoint": "/api/distributors/1/site_operation/",
+        "status_code": 502,
+        "error_type": "WooCommerce SSL EOF"
+      }
+    },
+    "summary": {
+      "execution_mode": "no-interrupt continuous next-step",
+      "blocker_recovery_success": true,
+      "f18_failure_flow_verified": true,
+      "success_flow_verified": false
+    }
+  },
+  {
+    "metadata": {
+      "collected_at": "2026-03-04T13:10:00",
+      "week_number": 10,
+      "month": 3,
+      "year": 2026,
+      "source": "manual-flywheel-update"
+    },
+    "engineering_loop": {
+      "focus": "PIM-F8 + PIM-F18 success-path evidence",
+      "blocker": "no available WP test credentials",
+      "fallback_strategy": "simulate_success in DEBUG with explicit flag",
+      "backend_changes": [
+        "site_operation supports simulate_success under DEBUG only",
+        "publish/revoke success path can bypass Woo client for local evidence"
+      ],
+      "frontend_changes": [
+        "DistributorSelectionPage sends simulate_success when VITE_SITE_OPERATION_SIMULATE_SUCCESS=1",
+        "page displays test-channel hint and refreshes status after successful operation"
+      ],
+      "test_evidence": {
+        "suite": "sites.tests.test_f18_site_operations",
+        "passed": 7,
+        "total": 7,
+        "new_cases": [
+          "publish simulate_success bypasses Woo client",
+          "revoke simulate_success bypasses Woo client"
+        ]
+      },
+      "docs_synced": [
+        "docs/status/current-status.md",
+        "docs/process-registry.md",
+        "docs/handover.md",
+        "docs/handover/auto/session-20260304-1310.md",
+        "docs/flywheel/weekly-report-2026-W10.md"
+      ]
+    },
+    "summary": {
+      "execution_mode": "no-interrupt continuous next-step",
+      "fallback_success_flow_verified": true,
+      "real_wp_success_flow_verified": false,
+      "docs_consistency_rate": 100.0
+    }
+  },
+  {
+    "metadata": {
+      "collected_at": "2026-03-04T13:42:00",
+      "week_number": 10,
+      "month": 3,
+      "year": 2026,
+      "source": "manual-flywheel-update"
+    },
+    "engineering_loop": {
+      "focus": "PIM-F17 workorder escalation channel",
+      "selected_channel": "workorder",
+      "implemented_actions": [
+        "add ImportBatchWorkorder model",
+        "add create-workorder endpoint for escalated batches",
+        "import-batches response includes workorder_created/workorder_status"
+      ],
+      "rules": {
+        "escalation_condition": "failed_count > 0 and created_at older than 48h",
+        "idempotency": "one batch maps to one workorder"
+      },
+      "test_evidence": {
+        "suite": "pim.tests.test_pim_f17_import_batch",
+        "passed": 4,
+        "total": 4,
+        "new_cases": [
+          "create workorder for escalated batch",
+          "create workorder idempotent"
+        ]
+      },
+      "docs_synced": [
+        "docs/status/current-status.md",
+        "docs/process-registry.md",
+        "docs/handover.md",
+        "docs/handover/auto/session-20260304-1342.md",
+        "docs/flywheel/weekly-report-2026-W10.md"
+      ]
+    },
+    "summary": {
+      "execution_mode": "no-interrupt continuous next-step",
+      "f17_workorder_channel_ready": true,
+      "f17_dual_channel_ready": false,
+      "docs_consistency_rate": 100.0
+    }
+  },
+  {
+    "metadata": {
+      "collected_at": "2026-03-04T15:10:00",
+      "week_number": 10,
+      "month": 3,
+      "year": 2026,
+      "source": "manual-flywheel-update"
+    },
+    "engineering_loop": {
+      "focus": "Phase1 dual-metric completion",
+      "implemented_actions": [
+        "phase1_metrics adds review_processed_daily_count",
+        "ProductsPage metrics card shows reviewer processed daily count"
+      ],
+      "metric_definition": {
+        "review_ready_daily_count": "daily count of products entering pending_review",
+        "review_processed_daily_count": "daily count of reviewer approve/reject actions"
+      },
+      "test_evidence": {
+        "suite": "pim.tests.test_pim_f13_metrics",
+        "passed": 3,
+        "total": 3,
+        "new_case": "phase1_metrics returns reviewer_processed_daily_count"
+      },
+      "build_evidence": {
+        "frontend_build": "npm run build passed"
+      }
+    },
+    "summary": {
+      "execution_mode": "direct-continue-no-extra-confirmation",
+      "phase1_dual_metrics_ready": true,
+      "business_observability_level": "high"
+    }
+  }
+]

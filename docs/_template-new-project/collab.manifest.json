@@ -1,0 +1,33 @@
+{
+    "schema_version":  1,
+    "template_version":  "2026-03-04.1",
+    "managed":  {
+                    "paths":  [
+                                  "AI.md",
+                                  ".cursor/rules/collab.mdc",
+                                  "docs/roundtable/INTENTS-GUIDE.md",
+                                  "docs/roundtable/roundtable-v2-protocol.md",
+                                  "docs/roundtable/consensus.md",
+                                  "docs/roundtable/intents/01-启动.md",
+                                  "docs/roundtable/intents/02-开发.md",
+                                  "docs/roundtable/intents/03-Bug.md",
+                                  "docs/roundtable/intents/04-圆桌.md",
+                                  "docs/flywheel/index.md",
+                                  "docs/flywheel/autonomous-collab-system.md"
+                              ],
+                    "last_synced_hash":  {
+                                             "AI.md":  "5b4c3f1bccc0d0bd175c8e29a5c261ec8423ed16e88df17183d12d03b772c31d",
+                                             ".cursor/rules/collab.mdc":  "ee2c8147376ed95b717084f2325a0d8d7bbc6aecc9365ce2bb41bbcd1306f314",
+                                             "docs/roundtable/INTENTS-GUIDE.md":  "cc11326d556d7371d2889e2a92b5c2a35442a26ee1d70562747bcab976c4bc09",
+                                             "docs/roundtable/roundtable-v2-protocol.md":  "06ae19f62b270f82aeee643a85e979e001b14dd00429cb7e2787199b80ac63c4",
+                                             "docs/roundtable/consensus.md":  "95dc2d422e08cc5af8d27f18eec316ba7bcfbf3e63b3e1d953af32f4616246d7",
+                                             "docs/roundtable/intents/03-Bug.md":  "cf86e785294fce8e4bbee96fa45370cc8454e45e865b2c82d0ee03cbde0bdf20",
+                                             "docs/flywheel/index.md":  "c62efa2727de46e0fbd473ddc1f39538f5f98cb18ec17508ee15055c9908c32d",
+                                             "docs/flywheel/autonomous-collab-system.md":  "4be6c2a7e34364843fc3237792d061549bf603124fcbdb03412745b1239ff844"
+                                         }
+                },
+    "project":  {
+                    "name":  "\u003cproject-name\u003e",
+                    "notes":  "This file marks the directory as a managed subproject for collab scripts."
+                }
+}

@@ -1,0 +1,32 @@
+﻿{
+    "schema_version":  1,
+    "template_version":  "2026-03-04.1",
+    "managed":  {
+                    "paths":  [
+                                  "AI.md",
+                                  ".cursor/rules/vault-collab.mdc",
+                                  "docs/roundtable/INTENTS-GUIDE.md",
+                                  "docs/roundtable/roundtable-v2-protocol.md",
+                                  "docs/roundtable/consensus.md",
+                                  "docs/roundtable/intents/01-启动.md",
+                                  "docs/roundtable/intents/02-开发.md",
+                                  "docs/roundtable/intents/03-Bug.md",
+                                  "docs/roundtable/intents/04-圆桌.md",
+                                  "docs/flywheel/index.md",
+                                  "docs/flywheel/autonomous-collab-system.md"
+                              ],
+                    "last_synced_hash":  {
+                                             "docs/roundtable/INTENTS-GUIDE.md":  "cc11326d556d7371d2889e2a92b5c2a35442a26ee1d70562747bcab976c4bc09",
+                                             "docs/roundtable/roundtable-v2-protocol.md":  "06ae19f62b270f82aeee643a85e979e001b14dd00429cb7e2787199b80ac63c4",
+                                             "docs/roundtable/consensus.md":  "95dc2d422e08cc5af8d27f18eec316ba7bcfbf3e63b3e1d953af32f4616246d7",
+                                             "docs/roundtable/intents/01-启动.md":  "1741106ceb945b31a5fac4edf2174382d4d5c844c29fbc9e1f70ddc033fe4f3b",
+                                             "docs/roundtable/intents/02-开发.md":  "2b54b0cbb161695bf30d86e50fc1b72b5989285d54e9b803ba757e11e140b1a1",
+                                             "docs/roundtable/intents/03-Bug.md":  "cf86e785294fce8e4bbee96fa45370cc8454e45e865b2c82d0ee03cbde0bdf20",
+                                             "docs/roundtable/intents/04-圆桌.md":  "28db6a01269507cf727c157440862c1280c5f86c3a496ff0281fb7f26b7c1134"
+                                         }
+                },
+    "project":  {
+                    "name":  "vault",
+                    "notes":  "Marks this subproject as managed for collab scripts."
+                }
+}

@@ -1,0 +1,123 @@
+---
+description: 代码修改原则和项目架构信息
+alwaysApply: true
+---
+
+# 代码修改原则
+
+## 0. 修改前必做
+- 先查看之前的聊天记录
+- 确认当前正在运行的代码版本
+- 不要凭记忆修改，要基于最新确认的代码
+
+## 1. 最小改动原则
+- 只修改与新需求直接相关的部分
+- 不要重写已经正常工作的代码
+- 保留原有的变量名、函数结构和逻辑
+
+## 2. 绝对不能修改的部分
+- return 语句结构和字段名（如 chatId）
+- recipients 数组格式
+- $input.first().json 的读取方式
+- API 调用参数格式
+
+## 3. 修改前确认
+- 先说明你打算修改哪些行
+- 解释为什么需要这些改动
+- 等我确认后再给出完整代码
+
+## 4. 增量添加
+- 新功能以"追加"方式添加
+- 用注释标记：// ===== 新增部分 =====
+- 不要"重构"或"优化"没问题的代码
+
+## 5. 输出格式
+- 优先只给出需要修改的代码片段
+- 必要时才输出完整代码
+
+---
+
+# 项目架构信息
+
+## 服务器配置
+- 所有服务都部署在同一台服务器上（IP: 72.60.211.191）
+- 包括：5个WooCommerce网站 + n8n + WAHA + Baserow
+
+## 服务地址
+- n8n: http://72.60.211.191:5678
+- WAHA: http://72.60.211.191:3001 (外部访问) / http://waha:3000 (Docker内部，n8n访问)
+- Baserow: http://72.60.211.191:3000
+
+## n8n Webhook
+- 统一地址: http://localhost:5678/webhook/woo-order
+- 因为都在同一服务器，WooCommerce可以用localhost访问n8n
+
+## WooCommerce网站列表（5个）
+1. vaultcare-d.com（已配置Webhook）
+2. vaultcaredubai.com
+3. vault-ping.com
+4. vault-yoyo.com
+5. vault-hui.com
+
+## Webhook配置模板
+- Name: n8n-neworder
+- Status: Active
+- Topic: Order created
+- Delivery URL: http://localhost:5678/webhook/woo-order
+- API Version: WP REST API Integration v3
+
+## 支付方式
+- 全部使用COD（货到付款），无在线支付网关
+
+## WAHA配置（已确认 - 2026-01-28）
+- **当前版本**: 2026.1.4 CORE
+- **API Key**: `<REDACTED>`（**从容器日志获取最新值**：`docker logs waha | grep "WAHA_API_KEY" | tail -1`）
+- **重要提示**: WAHA每次启动都会生成新的API Key，除非通过环境变量固定。日志中可能显示多个Key，应使用**最新的**（最后一行）
+- **Dashboard用户名**: admin
+- **Dashboard密码**: `<REDACTED>`（从容器日志获取最新值）
+- **默认会话名称**: default（必须使用此名称，n8n工作流中配置）
+- **Docker网络**: waha_default
+- **容器端口映射**: 3001:3000（主机3001映射到容器3000）
+- **n8n HTTP Request节点配置**（已测试成功）:
+  - URL: `http://waha:3000/api/sendText`（Docker内部网络，n8n和WAHA在同一Docker网络中）
+  - Headers: 
+    - `Content-Type: application/json`
+    - `X-Api-Key: 09972be208234342b1a0999e4426e863`（**必须使用最新值**）
+  - Body参数:
+    - `session: default`
+    - `chatId: {{ $json.chatId }}`
+    - `text: {{ $json.message }}`
+
+## 常见问题排查
+- **401 Unauthorized**: 检查API Key是否正确（从WAHA日志获取最新值：`docker logs waha | grep "WAHA_API_KEY" | tail -1`）
+- **服务器连接失败/未连接**: 检查WAHA Dashboard中"服务器"配置的"API 密钥"是否正确（必须是API Key，不是Dashboard密码）
+- **Session status is not as expected**: 检查WAHA Dashboard中的会话状态，重启或重新创建会话，重新扫描QR码
+- **连接被拒绝**: 检查URL端口（Docker内部使用3000，外部访问使用3001）和WAHA容器是否运行
+- **No LID for user**: 重新扫描QR码连接会话
+- **markedUnread错误**: 更新WAHA到最新版本（当前2026.1.4已修复）
+
+## ⚠️ 重要区别：API Key vs Dashboard密码
+
+- **API Key** (`<REDACTED>`): 用于API调用认证，配置在：
+  - n8n HTTP Request节点的`X-Api-Key`头部
+  - WAHA Dashboard的"服务器"配置中的"API 密钥"字段
+- **Dashboard密码** (`<REDACTED>`): 仅用于登录WAHA Dashboard界面
+- **不要混淆两者！** 在"服务器"配置中必须使用API Key，不是Dashboard密码
+
+## 固定API Key配置（推荐）
+
+为避免每次容器重启都生成新API Key，使用环境变量固定：
+
+```bash
+docker run -d \
+  --name waha \
+  --network waha_default \
+  -p 3001:3000 \
+  -e WAHA_API_KEY=<REDACTED> \
+  -e WAHA_DASHBOARD_USERNAME=admin \
+  -e WAHA_DASHBOARD_PASSWORD=<REDACTED> \
+  --restart unless-stopped \
+  devlikeapro/waha:latest
+```
+
+**注意**：使用固定API Key后，即使容器重启，API Key也不会改变，n8n配置只需设置一次。

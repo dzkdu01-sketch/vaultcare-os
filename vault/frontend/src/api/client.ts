@@ -30,10 +30,33 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/54fcb604-8024-4e9b-b085-1b417978616e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'api-error-debug',hypothesisId:'H2',location:'client.ts:responseInterceptor:error',message:'api error intercepted',data:{url:error?.config?.url || '',method:error?.config?.method || '',status:error?.response?.status || null,data:error?.response?.data || null,baseURL:error?.config?.baseURL || ''},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    const original = error.config
+    // Keep local debug ingest only in development to avoid production noise.
+    if (import.meta.env.DEV) {
+      fetch('http://127.0.0.1:7245/ingest/54fcb604-8024-4e9b-b085-1b417978616e', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runId: 'api-error-debug',
+          hypothesisId: 'H2',
+          location: 'client.ts:responseInterceptor:error',
+          message: 'api error intercepted',
+          data: {
+            url: error?.config?.url || '',
+            method: error?.config?.method || '',
+            status: error?.response?.status || null,
+            data: error?.response?.data || null,
+            baseURL: error?.config?.baseURL || '',
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+    }
+
+    const original = error?.config
+    if (!original) {
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true
       const refresh = localStorage.getItem('refresh_token')
@@ -41,6 +64,7 @@ api.interceptors.response.use(
         try {
           const res = await axios.post(`${API_BASE}/token/refresh/`, { refresh })
           localStorage.setItem('access_token', res.data.access)
+          original.headers = original.headers ?? {}
           original.headers.Authorization = `Bearer ${res.data.access}`
           return api(original)
         } catch {

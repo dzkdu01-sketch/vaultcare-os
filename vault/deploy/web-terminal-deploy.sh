@@ -13,7 +13,7 @@ cd vaultcare-os/vault
 
 echo "=== 2. 安装系统依赖 ==="
 apt-get update -qq
-apt-get install -y nginx python3.11 python3.11-venv python3-pip
+apt-get install -y nginx python3 python3-venv python3-pip
 
 echo "=== 3. 安装 Node.js ==="
 if ! command -v node &>/dev/null || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt 18 ]; then
@@ -27,7 +27,7 @@ mkdir -p "$APP_DIR"
 cp -r backend frontend deploy "$APP_DIR/"
 cd "$APP_DIR/backend"
 
-python3.11 -m venv venv
+python3 -m venv venv
 ./venv/bin/pip install -q -r requirements.txt
 
 if [ ! -f .env ]; then

@@ -1,0 +1,16 @@
+[Unit]
+Description=Vaultcare OS Django-Q2 Worker
+After=network.target vaultcare.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/vaultcare/backend
+Environment="PATH=/var/www/vaultcare/backend/venv/bin"
+EnvironmentFile=/var/www/vaultcare/backend/.env
+ExecStart=/var/www/vaultcare/backend/venv/bin/python manage.py qcluster
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

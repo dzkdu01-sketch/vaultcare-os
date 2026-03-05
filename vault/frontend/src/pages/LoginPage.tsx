@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ShieldCheck } from 'lucide-react'
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
+
 export default function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -58,6 +60,11 @@ export default function LoginPage() {
             </div>
             {error && (
               <p className="text-sm text-red-500 bg-red-50 rounded-md px-3 py-2">{error}</p>
+            )}
+            {DEMO_MODE && (
+              <p className="text-sm text-blue-700 bg-blue-50 rounded-md px-3 py-2">
+                演示模式已开启，可直接使用：test_admin / 123456
+              </p>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? '登录中...' : '登录'}

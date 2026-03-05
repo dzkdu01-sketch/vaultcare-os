@@ -22,6 +22,75 @@ import {
   Filter,
 } from 'lucide-react'
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
+
+const DEMO_SUMMARY: FinanceSummary = {
+  total_orders: 30,
+  delivered_orders: 8,
+  rejected_orders: 5,
+  pending_orders: 3,
+  total_revenue: 6911,
+  total_profit: 4941,
+  total_delivery_fees: 400,
+  avg_order_value: 863.88,
+}
+
+const DEMO_REVIEW_METRICS: ReviewMetrics = {
+  approved_count: 0,
+  first_pass_approved_count: 0,
+  first_pass_rate: 0,
+  rework_count: 0,
+  emergency_override_count: 0,
+  pending_review_count: 5,
+}
+
+const DEMO_RECENT_ORDERS: Order[] = [
+  {
+    id: 1,
+    order_number: 'VC-E891396',
+    distributor: 1,
+    distributor_name: 'Dubai Distributor - Ahmed',
+    source: 'website',
+    customer_name: 'Khalid Al Shamsi',
+    customer_phone: '+971501234567',
+    customer_address: 'Dubai',
+    city: 'Dubai',
+    total_amount: '673.80',
+    routed_supplier: 1,
+    supplier_name: 'VIP',
+    status: 'delivered',
+    delivery_fee: '50.00',
+    rejection_fee: '0.00',
+    profit: '220.00',
+    notes: '',
+    created_at: '2026-03-05T11:05:00Z',
+    updated_at: '2026-03-05T11:05:00Z',
+    items: [],
+  },
+  {
+    id: 2,
+    order_number: 'VC-18778842',
+    distributor: 2,
+    distributor_name: 'Self Operated Group 2',
+    source: 'whatsapp',
+    customer_name: 'Fatima Al Zaabi',
+    customer_phone: '+971501111111',
+    customer_address: 'Abu Dhabi',
+    city: 'Abu Dhabi',
+    total_amount: '196.60',
+    routed_supplier: 1,
+    supplier_name: 'VIP',
+    status: 'reviewed',
+    delivery_fee: '50.00',
+    rejection_fee: '0.00',
+    profit: '80.00',
+    notes: '',
+    created_at: '2026-03-04T17:28:00Z',
+    updated_at: '2026-03-04T17:28:00Z',
+    items: [],
+  },
+]
+
 const statusConfig: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'destructive' | 'secondary' | 'outline' }> = {
   pending: { label: '待审核', variant: 'warning' },
   reviewed: { label: '已审核', variant: 'default' },
@@ -90,6 +159,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const load = async () => {
+      if (DEMO_MODE) {
+        setSummary(DEMO_SUMMARY)
+        setRecentOrders(DEMO_RECENT_ORDERS)
+        setReviewMetrics(DEMO_REVIEW_METRICS)
+        setLoading(false)
+        return
+      }
       try {
         const [sumRes, ordersRes, metricsRes] = await Promise.all([
           financeAPI.summary('month'),

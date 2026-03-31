@@ -1,0 +1,701 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { HtmlPreviewPane } from '../../components/shared/HtmlPreviewPane'
+import { applyCatalogTagToggle } from '../../lib/catalogTags'
+import {
+  DEFAULT_PRODUCT_CATEGORIES,
+  DEFAULT_PRODUCT_TAGS,
+  parseTaxonomyJson,
+} from '../../lib/productTaxonomy'
+import { usePageHeader } from '../../context/PageHeaderContext'
+import { productApi, settingsApi, siteApi } from '../../services/app-services'
+import type { Site } from '../../services/types'
+import { ProductSyncToSitesModal } from './ProductSyncToSitesModal'
+import { SupplierCodeBindSection } from './SupplierCodeBindSection'
+import type { ProductInput } from '../../services/types'
+
+/** 产品图默认前缀（ImageKit pic 路径），与资源命名 `{SKU}-n.webp` 一致 */
+const PRODUCT_IMAGE_BASE = 'https://ik.imagekit.io/vaultcare/pic/'
+/** 固定 4 张：{SKU}-1.webp … {SKU}-4.webp，首行作列表缩略图 */
+const FIXED_IMAGE_SLOTS = 4
+
+function buildDefaultProductImageUrls(sku: string): string[] {
+  return Array.from({ length: FIXED_IMAGE_SLOTS }, (_, i) => `${PRODUCT_IMAGE_BASE}${sku}-${i + 1}.webp`)
+}
+
+const IMAGE_SLOT_LABELS = ['主图（列表）', '图 2', '图 3', '图 4'] as const
+
+function ProductImagePreviewSlot({ url }: { url: string | undefined }) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    setFailed(false)
+  }, [url])
+  const trimmed = url?.trim() ?? ''
+  if (!trimmed) {
+    return (
+      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center text-[10px] leading-tight text-slate-400">
+        无链接
+      </div>
+    )
+  }
+  if (failed) {
+    return (
+      <div className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-1 text-center text-[10px] leading-tight text-amber-800">
+        加载失败
+      </div>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => window.open(trimmed, '_blank', 'noopener,noreferrer')}
+      className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-left focus:outline-none focus:ring-2 focus:ring-violet-400"
+      title="在新标签页打开原图"
+    >
+      <img
+        src={trimmed}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="h-full w-full object-cover transition group-hover:opacity-90"
+        onError={() => setFailed(true)}
+      />
+      <span className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent py-1.5 pt-4 text-center text-[10px] text-white opacity-0 transition group-hover:opacity-100">
+        查看原图
+      </span>
+    </button>
+  )
+}
+
+const FORM_ID = 'product-form'
+
+const SECTION_NAV = [
+  { id: 'section-basic', label: '基础信息' },
+  { id: 'section-supplier', label: '供应商' },
+  { id: 'section-short', label: '短描述' },
+  { id: 'section-desc', label: '长描述' },
+  { id: 'section-meta', label: '图片' },
+] as const
+
+function FormSection({
+  id,
+  title,
+  description,
+  headerExtra,
+  children,
+}: {
+  id: string
+  title: string
+  description?: string
+  headerExtra?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section
+      id={id}
+      className="scroll-mt-28 rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/5 md:p-6"
+    >
+      <header className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
+          {description ? (
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{description}</p>
+          ) : null}
+        </div>
+        {headerExtra ? <div className="shrink-0">{headerExtra}</div> : null}
+      </header>
+      {children}
+    </section>
+  )
+}
+
+function SectionNav() {
+  return (
+    <nav
+      className="hidden xl:block xl:w-44 xl:shrink-0"
+      aria-label="本页目录"
+    >
+      <div className="sticky top-6 rounded-lg border border-slate-200/80 bg-white/90 p-3 shadow-sm backdrop-blur-sm">
+        <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          跳转
+        </p>
+        <ul className="space-y-0.5">
+          {SECTION_NAV.map(item => (
+            <li key={item.id}>
+              <a
+                href={`#${item.id}`}
+                className="block rounded-md px-2 py-1.5 text-sm text-slate-600 transition-colors hover:bg-violet-50 hover:text-violet-800"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </nav>
+  )
+}
+
+export function ProductFormPage() {
+  const navigate = useNavigate()
+  const { id } = useParams()
+  const isEdit = Boolean(id)
+
+  const [sku, setSku] = useState('')
+  const [form, setForm] = useState<ProductInput>({
+    name: '', short_description: '', description: '',
+    sale_price: 0, regular_price: 0,
+    category: '', tags: [], images: [], status: 1,
+  })
+  const [loading, setLoading] = useState(isEdit)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [categories, setCategories] = useState<string[]>(DEFAULT_PRODUCT_CATEGORIES)
+  const [tags, setTags] = useState<string[]>(DEFAULT_PRODUCT_TAGS)
+  const [sites, setSites] = useState<Site[]>([])
+  const [syncModalOpen, setSyncModalOpen] = useState(false)
+  const [selectedSyncSites, setSelectedSyncSites] = useState<string[]>([])
+  const [syncingToSites, setSyncingToSites] = useState(false)
+  const submitIntent = useRef<'stay' | 'list'>('stay')
+  const formRef = useRef(form)
+  formRef.current = form
+  const { setSubtitle, setHeaderActions } = usePageHeader()
+
+  useEffect(() => {
+    if (!isEdit) {
+      setSubtitle('保存后将进入编辑页，可绑定供应商编码')
+      return () => setSubtitle(null)
+    }
+    if (loading) {
+      setSubtitle('加载中…')
+      return () => setSubtitle(null)
+    }
+    // 顶栏只显示 SKU，避免长商品名占满顶栏、像固定输入框；名称仅在「基础信息」中编辑
+    setSubtitle(sku ? `SKU ${sku}` : null)
+    return () => setSubtitle(null)
+  }, [isEdit, loading, sku, setSubtitle])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const s = await settingsApi.get()
+        if (cancelled) return
+        setCategories(parseTaxonomyJson(s.product_categories_json, DEFAULT_PRODUCT_CATEGORIES))
+        setTags(parseTaxonomyJson(s.product_tags_json, DEFAULT_PRODUCT_TAGS))
+      } catch {
+        if (!cancelled) {
+          setCategories(DEFAULT_PRODUCT_CATEGORIES)
+          setTags(DEFAULT_PRODUCT_TAGS)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    void siteApi.list().then(setSites).catch(() => setSites([]))
+  }, [])
+
+  useEffect(() => {
+    if (!saveSuccess) return
+    const t = window.setTimeout(() => setSaveSuccess(false), 4000)
+    return () => window.clearTimeout(t)
+  }, [saveSuccess])
+
+  useEffect(() => {
+    if (!id) return
+    productApi.getById(id).then(data => {
+      const parsedImages =
+        typeof data.images === 'string' ? JSON.parse(data.images || '[]') : (data.images || [])
+      const images =
+        Array.isArray(parsedImages) && parsedImages.length === 0 && data.sku
+          ? buildDefaultProductImageUrls(data.sku)
+          : parsedImages
+      setSku(data.sku)
+      const tags = typeof data.tags === 'string' ? JSON.parse(data.tags || '[]') : (data.tags || [])
+      setForm({
+        name: data.name,
+        short_description: data.short_description || '',
+        description: data.description || '',
+        sale_price: data.sale_price || 0,
+        regular_price: data.regular_price || 0,
+        category: data.category || '',
+        tags,
+        images,
+        status: data.status ?? 1,
+      })
+      setLoading(false)
+    })
+  }, [id])
+
+  const runSave = useCallback(async (): Promise<boolean> => {
+    setSaving(true)
+    setError('')
+    setSaveSuccess(false)
+    const data = formRef.current
+    try {
+      if (isEdit) {
+        await productApi.update(id!, data)
+        const intent = submitIntent.current
+        submitIntent.current = 'stay'
+        if (intent === 'list') {
+          navigate('/products')
+          return false
+        }
+        setSaveSuccess(true)
+        return true
+      }
+      const created = await productApi.create(data)
+      navigate(`/products/${created.id}/edit`)
+      return false
+    } catch (err: any) {
+      setError(err.message || '保存失败')
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }, [isEdit, id, navigate])
+
+  const handleSaveAndReturnList = useCallback(async () => {
+    if (!isEdit || !id) return
+    const el = document.getElementById(FORM_ID) as HTMLFormElement | null
+    if (el && !el.checkValidity()) {
+      el.reportValidity()
+      return
+    }
+    submitIntent.current = 'list'
+    await runSave()
+  }, [isEdit, id, runSave])
+
+  const set = (field: keyof ProductInput, value: unknown) => setForm(f => ({ ...f, [field]: value }))
+
+  const toggleTag = (tag: string) => {
+    const current = form.tags || []
+    if (current.includes(tag)) {
+      set('tags', current.filter(t => t !== tag))
+    } else {
+      set('tags', applyCatalogTagToggle(current, tag))
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await runSave()
+  }
+
+  const openSyncModal = useCallback(() => {
+    if (!id) return
+    const active = sites.filter(s => s.status === 'active').map(s => s.id)
+    setSelectedSyncSites(active)
+    setSyncModalOpen(true)
+  }, [id, sites])
+
+  const toggleSyncSite = useCallback((siteId: string) => {
+    setSelectedSyncSites(prev =>
+      prev.includes(siteId) ? prev.filter(x => x !== siteId) : [...prev, siteId],
+    )
+  }, [])
+
+  const handleSyncConfirm = useCallback(async () => {
+    if (!id || selectedSyncSites.length === 0) return
+    const el = document.getElementById(FORM_ID) as HTMLFormElement | null
+    if (el && !el.checkValidity()) {
+      el.reportValidity()
+      return
+    }
+    setSyncingToSites(true)
+    setError('')
+    try {
+      submitIntent.current = 'stay'
+      const saved = await runSave()
+      if (!saved) return
+      const result = await productApi.sync(id, selectedSyncSites)
+      const ok = result.results.filter(r => r.success).length
+      const fail = result.results.filter(r => !r.success).length
+      const lines = result.results.map(
+        r => `${r.site_name}: ${r.success ? '成功' : `失败 ${r.error || ''}`}`,
+      )
+      alert(`同步完成：成功 ${ok}，失败 ${fail}\n${lines.join('\n')}`)
+      setSyncModalOpen(false)
+    } catch (err: any) {
+      const msg = err.message || '同步失败'
+      setError(msg)
+      alert(msg)
+    } finally {
+      setSyncingToSites(false)
+    }
+  }, [id, selectedSyncSites, runSave])
+
+  useEffect(() => {
+    if (loading) {
+      setHeaderActions(null)
+      return
+    }
+    setHeaderActions(
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => navigate('/products')}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm hover:bg-slate-50"
+        >
+          取消
+        </button>
+        {isEdit && (
+          <button
+            type="button"
+            onClick={() => void handleSaveAndReturnList()}
+            disabled={saving}
+            className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-violet-700 shadow-sm hover:bg-violet-50 disabled:opacity-50"
+          >
+            {saving ? '保存中...' : '保存并返回列表'}
+          </button>
+        )}
+        <button
+          type="submit"
+          form={FORM_ID}
+          disabled={saving}
+          onClick={() => { submitIntent.current = 'stay' }}
+          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-violet-700 disabled:opacity-50"
+        >
+          {saving ? '保存中...' : isEdit ? '保存' : '创建'}
+        </button>
+      </div>,
+    )
+    return () => setHeaderActions(null)
+  }, [loading, saving, isEdit, navigate, setHeaderActions, handleSaveAndReturnList])
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 min-h-[40vh] items-center justify-center text-slate-500">
+        加载中...
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col w-full max-w-none">
+      <div className="flex min-h-0 flex-1 flex-col gap-8 xl:flex-row xl:items-start xl:gap-10">
+        <form
+          id={FORM_ID}
+          onSubmit={handleSubmit}
+          className="flex min-w-0 flex-1 flex-col gap-6 pb-10"
+        >
+          {saveSuccess && (
+            <div
+              role="status"
+              className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+            >
+              已保存
+            </div>
+          )}
+          <FormSection
+            id="section-basic"
+            title="基础信息"
+            description="名称与状态、分类与标签、价格；保存前请确认必填项。"
+            headerExtra={
+              isEdit && id ? (
+                <button
+                  type="button"
+                  onClick={openSyncModal}
+                  className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 shadow-sm hover:bg-violet-100"
+                >
+                  同步至网站
+                </button>
+              ) : null
+            }
+          >
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+              {isEdit && (
+                <div className="xl:col-span-2">
+                  <label className="mb-1 block text-sm font-medium text-slate-700">SKU</label>
+                  <input
+                    value={sku}
+                    disabled
+                    className="w-full max-w-xs rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-500"
+                  />
+                  <p className="mt-1 text-xs text-slate-400">系统自动生成，不可修改</p>
+                </div>
+              )}
+
+              <div className="xl:col-span-2 flex flex-col gap-3 xl:flex-row xl:items-end xl:gap-6">
+                <div className="min-w-0 flex-1">
+                  <label className="mb-1 block text-sm font-medium text-slate-700">商品名称 *</label>
+                  <input
+                    value={form.name}
+                    onChange={e => set('name', e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    required
+                  />
+                </div>
+                <div className="shrink-0 xl:max-w-[min(100%,320px)]">
+                  <span className="mb-1 block text-sm font-medium text-slate-700">状态</span>
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="上架状态">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={(form.status ?? 1) === 1}
+                      onClick={() => set('status', 1)}
+                      className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 ${
+                        (form.status ?? 1) === 1
+                          ? 'border-violet-500 bg-violet-50 text-violet-900'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      上架
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={(form.status ?? 1) === 0}
+                      onClick={() => set('status', 0)}
+                      className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 ${
+                        (form.status ?? 1) === 0
+                          ? 'border-violet-500 bg-violet-50 text-violet-900'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      草稿
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="xl:col-span-2 grid grid-cols-1 gap-5 xl:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">分类</label>
+                  <select
+                    value={form.category || ''}
+                    onChange={e => set('category', e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  >
+                    <option value="">选择分类</option>
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">标签</label>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map(tag => {
+                      const selected = (form.tags || []).includes(tag)
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => toggleTag(tag)}
+                          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                            selected
+                              ? 'border-violet-300 bg-violet-100 text-violet-800'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">售价 (AED)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.sale_price || ''}
+                  onChange={e => set('sale_price', parseFloat(e.target.value) || 0)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">划线价 (AED)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.regular_price || ''}
+                  onChange={e => set('regular_price', parseFloat(e.target.value) || 0)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+            </div>
+          </FormSection>
+
+          <FormSection
+            id="section-supplier"
+            title="供应商编码"
+            description="从已导入货源中搜索并绑定；每个供应商最多一条关联。新建商品需先保存后再绑定。"
+          >
+            {isEdit && id ? (
+              <SupplierCodeBindSection productId={id} embedded />
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/90 p-4 text-sm text-slate-600">
+                保存新建商品后，将跳转到编辑页，即可在此绑定
+                <strong className="font-medium text-slate-800">供应商编码</strong>
+                （从已导入货源中搜索）。
+              </div>
+            )}
+          </FormSection>
+
+          <FormSection
+            id="section-short"
+            title="短描述"
+            description="左侧编辑 HTML 源码，右侧为消毒后预览（仅参考；保存内容以左侧为准）。图片/视频仅展示白名单域名。"
+          >
+            <div className="grid min-h-0 grid-cols-1 gap-4 xl:min-h-[360px] xl:grid-cols-2 xl:gap-6">
+              <div className="flex min-h-[200px] flex-col xl:min-h-0">
+                <label className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  源码
+                </label>
+                <textarea
+                  value={form.short_description || ''}
+                  onChange={e => set('short_description', e.target.value)}
+                  className="min-h-[200px] w-full flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500 xl:min-h-0"
+                />
+              </div>
+              <HtmlPreviewPane
+                html={form.short_description || ''}
+                label="预览（消毒后）"
+                className="min-h-[200px]"
+              />
+            </div>
+          </FormSection>
+
+          <FormSection
+            id="section-desc"
+            title="长描述"
+            description="可含视频等富媒体 HTML；右侧为消毒后预览，与短描述规则一致。"
+          >
+            <div className="grid min-h-0 grid-cols-1 gap-4 xl:min-h-[440px] xl:grid-cols-2 xl:gap-6">
+              <div className="flex min-h-[280px] flex-col xl:min-h-0">
+                <label className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  源码
+                </label>
+                <textarea
+                  value={form.description || ''}
+                  onChange={e => set('description', e.target.value)}
+                  className="min-h-[280px] w-full flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500 xl:min-h-0"
+                />
+              </div>
+              <HtmlPreviewPane
+                html={form.description || ''}
+                label="预览（消毒后）"
+                className="min-h-[280px]"
+              />
+            </div>
+          </FormSection>
+
+          <FormSection
+            id="section-meta"
+            title="图片"
+            description="固定 4 个槽位对应的链接；首行常作为列表缩略图。编辑且当前无图片时会自动填入 ImageKit 约定 URL。"
+          >
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">图片 URL</label>
+              <p className="mb-2 text-xs text-slate-500">
+                每行一个链接，共 4 行；自上而下<strong className="font-medium text-slate-700">第一行</strong>
+                通常用作后台列表缩略图。自动生成格式为{' '}
+                <code className="rounded bg-slate-100 px-1 text-[11px]">{`{SKU}-1.webp`}</code>
+                …<code className="rounded bg-slate-100 px-1 text-[11px]">{`{SKU}-4.webp`}</code>
+                （可从 ImageKit 复制其它路径或带参数的完整 URL 覆盖某行）。
+              </p>
+              {isEdit && sku ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => set('images', buildDefaultProductImageUrls(sku))}
+                    className="rounded border border-violet-200 px-3 py-1 text-xs text-violet-600 hover:bg-violet-50"
+                  >
+                    重新生成 4 条链接
+                  </button>
+                  <span className="text-xs text-slate-400">按当前 SKU 覆盖为约定链接</span>
+                </div>
+              ) : (
+                <p className="mb-2 text-xs text-slate-400">保存后将进入编辑页，若无图片将自动填入 4 条 ImageKit 链接</p>
+              )}
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-stretch xl:gap-6">
+                <div className="min-w-0 flex-1 flex flex-col">
+                  <textarea
+                    value={(form.images || []).join('\n')}
+                    onChange={e => set('images', e.target.value.split('\n').filter(Boolean))}
+                    rows={8}
+                    spellCheck={false}
+                    placeholder="https://ik.imagekit.io/vaultcare/pic/..."
+                    className="min-h-[200px] w-full flex-1 rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+                </div>
+                <div className="shrink-0 xl:w-[min(100%,280px)]">
+                  <p className="mb-2 text-xs font-medium text-slate-500">缩略图预览（与左侧行前 4 条对应）</p>
+                  <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+                    {IMAGE_SLOT_LABELS.map((label, i) => {
+                      const u = (form.images || [])[i]
+                      return (
+                        <div key={label} className="flex gap-3">
+                          <span className="w-[4.5rem] shrink-0 pt-1 text-xs leading-snug text-slate-500">{label}</span>
+                          <ProductImagePreviewSlot url={u} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {(form.images || []).length > FIXED_IMAGE_SLOTS ? (
+                    <p className="mt-2 text-[11px] text-slate-400">当前多于 4 条链接时，仅预览前 4 张；列表缩略图仍取第一行。</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </FormSection>
+
+          {error && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              {error}
+            </p>
+          )}
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-inner">
+            <p className="mb-3 text-xs text-slate-500">填完长表单后，可在此再次保存，无需回到页面顶部。</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                disabled={saving}
+                onClick={() => { submitIntent.current = 'stay' }}
+                className="rounded-lg bg-violet-600 px-5 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+              >
+                {saving ? '保存中...' : isEdit ? '保存' : '创建'}
+              </button>
+              {isEdit && (
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAndReturnList()}
+                  disabled={saving}
+                  className="rounded-lg border border-violet-200 bg-white px-4 py-2 text-sm text-violet-700 hover:bg-violet-50 disabled:opacity-50"
+                >
+                  保存并返回列表
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate('/products')}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm hover:bg-slate-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <SectionNav />
+      </div>
+
+      <ProductSyncToSitesModal
+        open={syncModalOpen}
+        sites={sites}
+        selectedIds={selectedSyncSites}
+        onToggle={toggleSyncSite}
+        onClose={() => setSyncModalOpen(false)}
+        onConfirm={() => void handleSyncConfirm()}
+        loading={syncingToSites || saving}
+      />
+    </div>
+  )
+}

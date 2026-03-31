@@ -1,0 +1,34 @@
+.worktrees/
+
+# IDE / 调试（勿提交）
+.cursor/
+
+# 运行日志
+*.log
+
+# 本地页面截图/抓屏备忘（非生产资源）
+frontend/screenshots/
+
+# 环境变量（避免泄露配置）
+.env
+.env.local
+.env.*.local
+
+# WooCommerce 图片下载脚本默认输出（可能很大）
+downloads/woo-product-images/
+
+# 前端测试产物
+frontend/test-results/
+
+# 依赖与构建产物（独立仓库 / 部署时现装现编）
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+*.tsbuildinfo
+
+# 本地数据库（勿提交）
+backend/data/*.db
+
+# Windows 保留设备名，会导致 git add 异常，勿提交
+nul

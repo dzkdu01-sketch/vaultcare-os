@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+:root {
+  color: #0f172a;
+  background-color: #f8fafc;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}

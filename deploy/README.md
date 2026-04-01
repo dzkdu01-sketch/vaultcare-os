@@ -95,6 +95,19 @@ pm2 save
 
 ---
 
+## 排错：打开网站仍是旧版「Vaultcare OS」登录页？
+
+若 **`/etc/nginx/sites-enabled/`** 里**同时存在** `vaultcare.conf`（旧站）和 `vault-os11`（新站），浏览器可能仍访问到旧目录 `/var/www/vaultcare/frontend/dist`。一键脚本会删除 `vaultcare`，但 CloudPanel 等环境常用文件名 **`vaultcare.conf`**，需手动关掉旧站：
+
+```bash
+rm -f /etc/nginx/sites-enabled/vaultcare.conf
+nginx -t && systemctl reload nginx
+```
+
+再执行 `curl -s http://127.0.0.1/ | head`：新前端标题应为 **`Vaultcare`**（见 `frontend/index.html`），而不是旧站的 **`Vaultcare OS`**。
+
+---
+
 ## 六、如何更新版本
 
 在服务器上进入项目根目录，拉代码或覆盖新文件后：
@@ -146,3 +159,56 @@ npm run dev
 - `docs/plans/`：开发计划与交接记录，非运行时文件。
 
 若你希望进一步「只保留代码、删掉全部文档」以减小体积，请先备份后再删，并自行承担丢失需求说明的风险。
+
+---
+
+## 十、将本地 SQLite 数据同步到 VPS
+
+业务数据在 **`backend/data/vaultcare.db`**（单文件）。把本地数据「搬到」服务器 = **用上传覆盖 VPS 上同路径的该文件**（会**覆盖**服务器上原有数据库，请先备份）。
+
+### 操作前
+
+1. **本地**：关闭正在跑的后端（若有 `npm run dev` 在 `backend` 里，先 Ctrl+C），再复制 `vaultcare.db`，避免文件半截。  
+2. **VPS**：用 PM2 停掉 API，避免读写冲突：
+
+```bash
+pm2 stop vault-os11-api
+```
+
+（若进程名是 `vault-os1.1-api`，改成对应名字。）
+
+### 备份服务器上旧库（强烈建议）
+
+```bash
+cp /var/www/vault-os1.1/backend/data/vaultcare.db /var/www/vault-os1.1/backend/data/vaultcare.db.bak.$(date +%Y%m%d)
+```
+
+### 上传本地文件（任选一种）
+
+**方式 A：PowerShell / CMD 用 `scp`（需已安装 OpenSSH 客户端）**
+
+在本机执行（把 IP 换成你的 VPS）：
+
+```powershell
+scp "D:\cursor\vault-os1.1\backend\data\vaultcare.db" root@72.61.140.40:/var/www/vault-os1.1/backend/data/vaultcare.db
+```
+
+**方式 B：WinSCP / FileZilla（SFTP）**
+
+- 本地文件：`vault-os1.1\backend\data\vaultcare.db`  
+- 远程路径：`/var/www/vault-os1.1/backend/data/vaultcare.db`（覆盖上传）
+
+### 上传后（在 VPS）
+
+```bash
+chmod 644 /var/www/vault-os1.1/backend/data/vaultcare.db
+pm2 restart vault-os11-api
+pm2 save
+```
+
+再用浏览器刷新商品列表，应能看到与本地一致的数据。
+
+### 说明
+
+- 若本地**没有** `vaultcare.db`，说明本地还没跑过后端或库在别的路径，请先在本机启动一次后端并确认文件存在。  
+- 当前实现以 **数据库文件** 为主；若日后有独立上传目录（大量图片等），需一并同步对应目录（以当时项目为准）。

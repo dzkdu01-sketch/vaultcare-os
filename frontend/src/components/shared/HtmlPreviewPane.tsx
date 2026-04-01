@@ -1,5 +1,9 @@
 import { sanitizeProductHtml } from '../../lib/sanitizeProductHtml'
 
+/** 与商品详情等处的富文本展示一致 */
+export const PRODUCT_HTML_PREVIEW_CLASSES =
+  'product-html-preview max-w-none whitespace-pre-wrap break-words [&_img]:max-w-full [&_img]:h-auto [&_video]:max-w-full [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5'
+
 type Props = {
   html: string
   label?: string
@@ -27,7 +31,7 @@ export function HtmlPreviewPane({ html, label = '预览', className = '' }: Prop
           <p className="text-slate-400">暂无内容</p>
         ) : (
           <div
-            className="product-html-preview max-w-none whitespace-pre-wrap break-words [&_img]:max-w-full [&_img]:h-auto [&_video]:max-w-full [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5"
+            className={PRODUCT_HTML_PREVIEW_CLASSES}
             dangerouslySetInnerHTML={{ __html: safe }}
           />
         )}
@@ -37,7 +41,7 @@ export function HtmlPreviewPane({ html, label = '预览', className = '' }: Prop
           </p>
         )}
         <p className="mt-2 text-[11px] leading-snug text-slate-400">
-          若图片或视频不显示，多为外链域名不在白名单；可在 .env 中配置 VITE_MEDIA_HOST_WHITELIST（参见 .env.example）。
+          未写 HTML 时，每行单独粘贴视频/图片链接会自动转成预览；若仍不显示，多为域名不在白名单，可在 .env 配置 VITE_MEDIA_HOST_WHITELIST（见 .env.example）。
         </p>
       </div>
     </div>

@@ -1,6 +1,13 @@
 import { Router, Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { CATALOG_TAG_HER, CATALOG_TAG_HIM, catalogTagMessage, hasCatalogTagConflict, hasGenderCatalogTag } from '../catalogTags.js'
+import {
+  CATALOG_TAG_HER,
+  CATALOG_TAG_HIM,
+  catalogTagMessage,
+  dedupeGenderCatalogTags,
+  hasCatalogTagConflict,
+  hasGenderCatalogTag,
+} from '../catalogTags.js'
 import { getDb } from '../db/index.js'
 import { buildCatalogBrochureImage } from '../services/catalogPng.js'
 import { createProduct, updateProduct, findProductBySku, fetchAllProducts, WooSite } from '../services/woo-client.js'
@@ -30,15 +37,33 @@ async function handleCatalogPng(req: Request, res: Response) {
   const tag = audience === 'him' ? CATALOG_TAG_HIM : CATALOG_TAG_HER
   const db = getDb()
   const like = `%"${tag.replace(/"/g, '')}"%`
-  const rows = db.all(
-    `SELECT sku, name, sale_price, regular_price, images, category FROM products
-     WHERE status = 1 AND catalog_in = 1 AND tags LIKE ?
+  let rows: Array<{
+    sku: string
+    name: string
+    sale_price: number
+    regular_price: number
+    images: string
+    category: string | null
+    supplier_codes: string | null
+  }>
+  try {
+    rows = db.all(
+      `SELECT p.sku, p.name, p.sale_price, p.regular_price, p.images, p.category,
+       (SELECT GROUP_CONCAT(supplier_code, ', ') FROM (
+          SELECT DISTINCT supplier_code FROM product_supplier WHERE product_id = p.id
+        )) AS supplier_codes
+     FROM products p
+     WHERE p.status = 1 AND p.catalog_in = 1 AND p.tags LIKE ?
      ORDER BY
-       CASE WHEN category IS NULL OR TRIM(category) = '' THEN 1 ELSE 0 END,
-       category COLLATE NOCASE ASC,
-       sku COLLATE NOCASE ASC`,
-    [like],
-  ) as Array<{ sku: string; name: string; sale_price: number; regular_price: number; images: string; category: string | null }>
+       CASE WHEN p.category IS NULL OR TRIM(p.category) = '' THEN 1 ELSE 0 END,
+       p.category COLLATE NOCASE ASC,
+       p.sku COLLATE NOCASE ASC`,
+      [like],
+    ) as typeof rows
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return respondError(res, `图册查询失败: ${msg}`, 500)
+  }
   if (!rows || rows.length === 0) {
     return respondError(res, '没有已进图册、带对应标签且上架的商品', 400)
   }
@@ -126,10 +151,14 @@ productRouter.get('/items', (req: Request, res: Response) => {
 
   const sitesRow = db.get("SELECT COUNT(*) as count FROM sites WHERE status = 'active'")
   const total_sites = (sitesRow as any)?.count ?? 0
+  const dbTotalRow = db.get('SELECT COUNT(*) as count FROM products')
+  const db_product_count = (dbTotalRow as any)?.count ?? 0
 
   respond(res, {
     items,
     total_sites,
+    /** 本地库商品总数（不受当前列表 keyword/category 等筛选影响）；用于「全量同步」提示 */
+    db_product_count,
     pagination: { page: pageNum, page_size: pageSize, total, total_pages: Math.ceil(total / pageSize) },
   })
 })
@@ -189,7 +218,8 @@ productRouter.get('/items/:id', (req: Request, res: Response) => {
 productRouter.post('/items', (req: Request, res: Response) => {
   const { name, short_description, description, sale_price, regular_price, category, tags, images, status } = req.body
   if (!name) return respondError(res, 'Missing required field: name')
-  if (hasCatalogTagConflict(tags)) return respondError(res, catalogTagMessage(), 400)
+  const tagsNorm = dedupeGenderCatalogTags(tags)
+  if (hasCatalogTagConflict(tagsNorm)) return respondError(res, catalogTagMessage(), 400)
 
   const db = getDb()
   const id = `prod-${uuidv4().slice(0, 8)}`
@@ -200,7 +230,7 @@ productRouter.post('/items', (req: Request, res: Response) => {
     db.run(
       `INSERT INTO products (id, sku, name, short_description, description, sale_price, regular_price, category, tags, images, status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, sku, name, short_description || null, description || null, sale_price || 0, regular_price || 0, category || null, JSON.stringify(tags || []), JSON.stringify(images || []), status ?? 1, ts, ts]
+      [id, sku, name, short_description || null, description || null, sale_price || 0, regular_price || 0, category || null, JSON.stringify(tagsNorm), JSON.stringify(images || []), status ?? 1, ts, ts]
     )
     const product = db.get('SELECT * FROM products WHERE id = ?', [id])
     respond(res, product, 201)
@@ -216,13 +246,14 @@ productRouter.put('/items/:id', (req: Request, res: Response) => {
   if (!product) return respondError(res, 'Product not found', 404)
 
   const nextTags: unknown[] | undefined = req.body.tags !== undefined ? req.body.tags : undefined
-  if (nextTags !== undefined && hasCatalogTagConflict(nextTags)) {
+  const tagsNorm = nextTags !== undefined ? dedupeGenderCatalogTags(nextTags) : undefined
+  if (tagsNorm !== undefined && hasCatalogTagConflict(tagsNorm)) {
     return respondError(res, catalogTagMessage(), 400)
   }
 
   let finalTags: unknown[]
   try {
-    finalTags = nextTags !== undefined ? nextTags : JSON.parse(String(product.tags || '[]'))
+    finalTags = tagsNorm !== undefined ? tagsNorm : JSON.parse(String(product.tags || '[]'))
   } catch {
     finalTags = []
   }
@@ -244,7 +275,7 @@ productRouter.put('/items/:id', (req: Request, res: Response) => {
   for (const field of updatable) {
     if (req.body[field] !== undefined) {
       sets.push(`${field} = ?`)
-      const val = req.body[field]
+      const val = field === 'tags' && tagsNorm !== undefined ? tagsNorm : req.body[field]
       params.push((field === 'images' || field === 'tags') ? JSON.stringify(val) : val)
     }
   }
@@ -276,35 +307,35 @@ productRouter.delete('/items/:id', (req: Request, res: Response) => {
   respond(res, { deleted: true })
 })
 
-// POST /items/:id/sync
-productRouter.post('/items/:id/sync', async (req: Request, res: Response) => {
-  const db = getDb()
-  const product = db.get('SELECT * FROM products WHERE id = ?', [req.params.id]) as any
-  if (!product) return respondError(res, 'Product not found', 404)
-
-  const { site_ids } = req.body || {}
-  const results = await syncProductToSites(product, site_ids)
-  respond(res, { product_id: product.id, results })
-})
-
-// POST /items/sync-all
+// POST /items/sync-all — 须注册在 /items/:id/sync 之前，避免路径被误解析（防御性顺序）
 productRouter.post('/items/sync-all', async (req: Request, res: Response) => {
   const db = getDb()
   const { site_ids } = req.body || {}
   const products = db.all('SELECT * FROM products') as any[]
   if (products.length === 0) return respondError(res, 'No products to sync')
 
-  const allResults: Array<{ product_id: string; sku: string; results: any[] }> = []
+  const allResults: Array<{ product_id: string; sku: string; results: any[]; skipped_images: string[] }> = []
 
   for (const product of products) {
-    const results = await syncProductToSites(product, site_ids)
-    allResults.push({ product_id: product.id, sku: product.sku, results })
+    const { results, skipped_images } = await syncProductToSites(product, site_ids)
+    allResults.push({ product_id: product.id, sku: product.sku, results, skipped_images })
   }
 
   const totalSynced = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => x.success).length, 0)
   const totalFailed = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => !x.success).length, 0)
 
   respond(res, { products: allResults.length, synced: totalSynced, failed: totalFailed, details: allResults })
+})
+
+// POST /items/:id/sync — 仅同步这一件商品到各站点
+productRouter.post('/items/:id/sync', async (req: Request, res: Response) => {
+  const db = getDb()
+  const product = db.get('SELECT * FROM products WHERE id = ?', [req.params.id]) as any
+  if (!product) return respondError(res, 'Product not found', 404)
+
+  const { site_ids } = req.body || {}
+  const { results, skipped_images } = await syncProductToSites(product, site_ids)
+  respond(res, { product_id: product.id, results, skipped_images })
 })
 
 // POST /items/pull-from-site - 从源站拉取所有产品
@@ -383,8 +414,54 @@ productRouter.post('/items/pull-from-site', async (req: Request, res: Response) 
   }
 })
 
-// 共用的同步逻辑
-async function syncProductToSites(product: any, siteIds?: string[]) {
+/** 单张远程图是否可访问（与 Woo 拉图行为一致的前置检查） */
+async function isImageUrlReachable(url: string): Promise<boolean> {
+  try {
+    let res = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15000),
+    })
+    if (res.ok) return true
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15000),
+        headers: { Range: 'bytes=0-0' },
+      })
+    }
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 编辑页里填了但远程 404 的图片会跳过，其余字段照常同步。
+ * SYNC_SKIP_IMAGE_PREFLIGHT=1 时不做检查，原样交给 Woo（由 Woo 报错或成功）。
+ */
+async function filterReachableImageUrls(urls: string[]): Promise<{ ok: string[]; skipped: string[] }> {
+  if (urls.length === 0) return { ok: [], skipped: [] }
+  if (process.env.SYNC_SKIP_IMAGE_PREFLIGHT === '1') {
+    return { ok: [...urls], skipped: [] }
+  }
+  const outcomes = await Promise.all(
+    urls.map(async (url, i) => ({ i, url, ok: await isImageUrlReachable(url) })),
+  )
+  outcomes.sort((a, b) => a.i - b.i)
+  const ok = outcomes.filter(o => o.ok).map(o => o.url)
+  const skipped = outcomes.filter(o => !o.ok).map(o => o.url)
+  return { ok, skipped }
+}
+
+type SyncSiteResult = { site_id: string; site_name: string; success: boolean; error?: string }
+
+// 共用的同步逻辑；不可访问的图片写入 skipped_images，不阻塞其余字段
+async function syncProductToSites(
+  product: any,
+  siteIds?: string[],
+): Promise<{ results: SyncSiteResult[]; skipped_images: string[] }> {
   const db = getDb()
   let sites: any[]
   if (siteIds && siteIds.length > 0) {
@@ -394,7 +471,10 @@ async function syncProductToSites(product: any, siteIds?: string[]) {
     sites = db.all("SELECT * FROM sites WHERE status = 'active'") as any[]
   }
 
-  const images = JSON.parse(product.images || '[]') as string[]
+  const rawImages = JSON.parse(product.images || '[]') as string[]
+  const trimmed = rawImages.map((s) => String(s).trim()).filter(Boolean)
+  const { ok: imageSrcs, skipped: skipped_images } = await filterReachableImageUrls(trimmed)
+
   const wooProduct = {
     name: product.name,
     sku: product.sku,
@@ -402,13 +482,13 @@ async function syncProductToSites(product: any, siteIds?: string[]) {
     sale_price: product.sale_price ? String(product.sale_price) : '',
     short_description: product.short_description || '',
     description: product.description || '',
-    images: images.map((src: string) => ({ src })),
+    images: imageSrcs.map((src: string) => ({ src })),
     categories: product.category ? [{ name: product.category }] : [],
     tags: JSON.parse(product.tags || '[]').map((t: string) => ({ name: t })),
     status: product.status === 1 ? 'publish' : 'draft',
   }
 
-  const results: Array<{ site_id: string; site_name: string; success: boolean; error?: string }> = []
+  const results: SyncSiteResult[] = []
 
   for (const site of sites) {
     const wooSite: WooSite = { url: site.url, consumer_key: site.consumer_key, consumer_secret: site.consumer_secret }
@@ -448,5 +528,5 @@ async function syncProductToSites(product: any, siteIds?: string[]) {
     }
   }
 
-  return results
+  return { results, skipped_images }
 }

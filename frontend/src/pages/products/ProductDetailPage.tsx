@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { PRODUCT_HTML_PREVIEW_CLASSES } from '../../components/shared/HtmlPreviewPane'
+import { sanitizeProductHtml } from '../../lib/sanitizeProductHtml'
 import { productApi, supplierApi } from '../../services/app-services'
 import type { ProductDetail, ProductSupplierMapping, Supplier } from '../../services/types'
 
@@ -44,7 +46,13 @@ export function ProductDetailPage() {
       const result = await productApi.sync(id)
       const success = result.results.filter(r => r.success).length
       const failed = result.results.filter(r => !r.success).length
-      alert(`同步完成：${success} 成功，${failed} 失败`)
+      const n = result.results.length
+      const skipped = result.skipped_images?.length
+        ? `\n\n已跳过无法访问的图片：\n${result.skipped_images.join('\n')}`
+        : ''
+      alert(
+        `同步完成（仅当前商品；共 ${n} 个站点）：${success} 个站点成功，${failed} 个站点失败${skipped}`,
+      )
       await loadData()
     } catch (err: any) {
       alert(`同步失败: ${err.message}`)
@@ -139,13 +147,19 @@ export function ProductDetailPage() {
             {product.short_description && (
               <div className="pt-2 border-t border-slate-100">
                 <p className="text-xs text-slate-500 mb-1">Short Description</p>
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">{product.short_description}</p>
+                <div
+                  className={`${PRODUCT_HTML_PREVIEW_CLASSES} text-sm text-slate-700`}
+                  dangerouslySetInnerHTML={{ __html: sanitizeProductHtml(product.short_description) }}
+                />
               </div>
             )}
             {product.description && (
               <div className="pt-2 border-t border-slate-100">
                 <p className="text-xs text-slate-500 mb-1">Description</p>
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">{product.description}</p>
+                <div
+                  className={`${PRODUCT_HTML_PREVIEW_CLASSES} text-sm text-slate-700`}
+                  dangerouslySetInnerHTML={{ __html: sanitizeProductHtml(product.description) }}
+                />
               </div>
             )}
           </div>

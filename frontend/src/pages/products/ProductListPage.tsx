@@ -13,9 +13,12 @@ export function ProductListPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [pagination, setPagination] = useState<Pagination>({ page: 1, page_size: 150, total: 0, total_pages: 0 })
   const [totalSites, setTotalSites] = useState(0)
+  /** 本地库商品总数（与列表筛选无关）；全量同步会推送全部 db 件 */
+  const [dbProductCount, setDbProductCount] = useState(0)
   const [keyword, setKeyword] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
+  /** 默认上架（出售中），避免首屏混入草稿 */
+  const [filterStatus, setFilterStatus] = useState('1')
   const [filterTag, setFilterTag] = useState('')
   const [filterCatalogIn, setFilterCatalogIn] = useState<'0' | '1' | ''>('')
   const [loading, setLoading] = useState(true)
@@ -64,10 +67,12 @@ export function ProductListPage() {
       setProducts(data.items)
       setPagination(data.pagination)
       setTotalSites(data.total_sites || 0)
+      setDbProductCount(typeof data.db_product_count === 'number' ? data.db_product_count : data.pagination?.total ?? 0)
     } catch (e: unknown) {
       setProducts([])
       setPagination({ page: 1, page_size: 150, total: 0, total_pages: 0 })
       setTotalSites(0)
+      setDbProductCount(0)
       const isNetwork =
         e instanceof TypeError ||
         (e instanceof Error && /failed to fetch|network|load failed/i.test(e.message))
@@ -122,11 +127,24 @@ export function ProductListPage() {
 
   const handleSyncAll = async () => {
     if (selectedSyncSites.length === 0) return
+    const totalInDb = dbProductCount > 0 ? dbProductCount : pagination.total
+    const msg = `将同步本地数据库中的全部 ${totalInDb} 件商品到已选的 ${selectedSyncSites.length} 个站点。\n\n此操作与当前列表的搜索/筛选无关；编辑页「同步至网站」才是只推一件商品。\n\n确定继续？`
+    if (!confirm(msg)) return
     setShowSyncMenu(false)
     setSyncingAll(true)
     try {
       const result = await productApi.syncAll(selectedSyncSites)
-      alert(`同步完成：${result.synced} 成功，${result.failed} 失败`)
+      const withSkips = result.details?.filter(d => (d.skipped_images?.length ?? 0) > 0) ?? []
+      const skipHint =
+        withSkips.length > 0
+          ? `\n\n${withSkips.length} 件商品有图片因远程不可访问被跳过（其余内容已同步），SKU 示例：${withSkips
+              .slice(0, 8)
+              .map(d => d.sku)
+              .join(', ')}${withSkips.length > 8 ? '…' : ''}`
+          : ''
+      alert(
+        `全量同步完成：共 ${result.products} 件商品参与；按站点计成功 ${result.synced} 次、失败 ${result.failed} 次。${skipHint}`,
+      )
       loadProducts(pagination.page)
     } catch (err: any) {
       alert(`同步失败: ${err.message}`)
@@ -340,8 +358,8 @@ export function ProductListPage() {
             className="px-3 py-2 border border-slate-300 rounded-md text-sm"
           >
             <option value="">全部状态</option>
-            <option value="1">Active</option>
-            <option value="0">Draft</option>
+            <option value="1">上架（出售中）</option>
+            <option value="0">草稿</option>
           </select>
           <select
             value={filterTag}
@@ -396,14 +414,17 @@ export function ProductListPage() {
           <div className="relative" ref={syncMenuRef}>
             <button
               onClick={() => { setShowSyncMenu(!showSyncMenu); setShowImport(false) }}
-              disabled={syncingAll || products.length === 0}
+              disabled={syncingAll || dbProductCount === 0}
+              title={dbProductCount > 0 ? `将同步本地全部 ${dbProductCount} 件商品（与筛选无关）` : '本地无商品可同步'}
               className="px-4 py-2 text-sm border border-violet-200 text-violet-600 rounded-md hover:bg-violet-50 disabled:opacity-50"
             >
-              {syncingAll ? '同步中...' : '同步到站点'}
+              {syncingAll ? '同步中...' : '同步全部到站点'}
             </button>
             {showSyncMenu && (
               <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[220px]">
-                <p className="px-3 py-2 text-xs text-slate-400 border-b border-slate-100">选择要同步的站点</p>
+                <p className="px-3 py-2 text-xs text-slate-400 border-b border-slate-100">
+                  全量同步（本地约 {dbProductCount || '—'} 件，与筛选无关）
+                </p>
                 {sites.map(s => (
                   <label key={s.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
                     <input
@@ -421,7 +442,7 @@ export function ProductListPage() {
                     disabled={selectedSyncSites.length === 0}
                     className="w-full px-3 py-1.5 bg-violet-600 text-white text-sm rounded hover:bg-violet-700 disabled:opacity-50"
                   >
-                    同步选中站点 ({selectedSyncSites.length})
+                    确认同步全部商品 ({selectedSyncSites.length} 个站点)
                   </button>
                 </div>
               </div>

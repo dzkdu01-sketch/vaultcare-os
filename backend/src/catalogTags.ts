@@ -64,3 +64,41 @@ export function hasGenderCatalogTag(tags: unknown): boolean {
     return k === KEY_HIM || k === KEY_HER
   })
 }
+
+/**
+ * 将 for him / for her 规范为 canonical 小写形式，且至多保留一枚（**后者覆盖前者**）。
+ * 解决 Woo 同步大小写混用（如 `For Him` + `for her`）时，前端 `includes('for him')` 判不中、界面只显示一枚却提交两枚的问题。
+ */
+export function dedupeGenderCatalogTags(tags: unknown): string[] {
+  const list = normalizeCatalogTagNames(tags)
+  let lastIdx = -1
+  let lastCanon: string | null = null
+  for (let i = 0; i < list.length; i++) {
+    const k = tagCompareKey(list[i])
+    if (k === KEY_HIM) {
+      lastIdx = i
+      lastCanon = CATALOG_TAG_HIM
+    } else if (k === KEY_HER) {
+      lastIdx = i
+      lastCanon = CATALOG_TAG_HER
+    }
+  }
+  if (lastCanon === null) {
+    return list.map(t => {
+      const k = tagCompareKey(t)
+      if (k === KEY_HIM) return CATALOG_TAG_HIM
+      if (k === KEY_HER) return CATALOG_TAG_HER
+      return t
+    })
+  }
+  const out: string[] = []
+  for (let i = 0; i < list.length; i++) {
+    const k = tagCompareKey(list[i])
+    if (k === KEY_HIM || k === KEY_HER) {
+      if (i === lastIdx) out.push(lastCanon)
+      continue
+    }
+    out.push(list[i])
+  }
+  return out
+}

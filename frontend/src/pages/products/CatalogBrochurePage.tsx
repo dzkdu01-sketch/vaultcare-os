@@ -80,7 +80,9 @@ export function CatalogBrochurePage() {
         仅包含<strong>已上架（Active）</strong>、已在产品列表中<strong>勾选进图册</strong>，且带有对应性别标签
         <strong> {CATALOG_TAG_HIM}</strong> 或 <strong>{CATALOG_TAG_HER}</strong> 的商品（两标签互斥）。
         草稿/下线商品可勾选进图册，但不会出现在本页统计与下载的长图中。
-        下载为 <strong>PNG</strong>（无损、无 JPEG 块状伪影，文件较大）；竖版长图宽 1500px；商品按<strong>分类名称</strong>排序，同分类内按 SKU。
+        下载为 <strong>PNG</strong>（无损、无 JPEG 块状伪影，文件较大）；竖版长图宽 1500px、<strong>四列</strong>白卡展陈；商品按<strong>分类名称</strong>排序，同分类内按 SKU。
+        卡内共<strong>两行</strong>：①标题左对齐（单行）；②<strong>左为 SKU · 供应商绑定码（弱化）/ 右为现价 AED</strong>（同一行两端对齐），数字与 SKU 为 24px，价为<strong>主价橙</strong>（#FF6700）；<strong>不展示</strong>划线原价。
+        页底浅灰、白卡轻阴影；顶栏为浅色承诺条与分册标题；分类为<strong>大字 + 留白</strong>。长图含<strong>图册生成日期</strong>（迪拜时区）；不改变商品内容与顺序。
       </p>
 
       {error ? (

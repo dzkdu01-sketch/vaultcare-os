@@ -53,11 +53,53 @@ export function hasGenderCatalogTag(tags: unknown): boolean {
   })
 }
 
-export function applyCatalogTagToggle(current: string[], tag: string): string[] {
-  if (!current.includes(tag)) {
-    const other = OPPOSITE[tag]
-    const next = other ? current.filter(t => t !== other) : [...current]
-    return [...next, tag]
+/** 与后端 catalogTags.dedupeGenderCatalogTags 一致：性别标签 canonical 化，多枚时保留最后一枚 */
+export function dedupeGenderCatalogTags(tags: unknown): string[] {
+  const list = normalizeCatalogTagNames(tags)
+  let lastIdx = -1
+  let lastCanon: string | null = null
+  for (let i = 0; i < list.length; i++) {
+    const k = tagCompareKey(list[i])
+    if (k === KEY_HIM) {
+      lastIdx = i
+      lastCanon = CATALOG_TAG_HIM
+    } else if (k === KEY_HER) {
+      lastIdx = i
+      lastCanon = CATALOG_TAG_HER
+    }
   }
-  return current.filter(t => t !== tag)
+  if (lastCanon === null) {
+    return list.map(t => {
+      const k = tagCompareKey(t)
+      if (k === KEY_HIM) return CATALOG_TAG_HIM
+      if (k === KEY_HER) return CATALOG_TAG_HER
+      return t
+    })
+  }
+  const out: string[] = []
+  for (let i = 0; i < list.length; i++) {
+    const k = tagCompareKey(list[i])
+    if (k === KEY_HIM || k === KEY_HER) {
+      if (i === lastIdx) out.push(lastCanon)
+      continue
+    }
+    out.push(list[i])
+  }
+  return out
+}
+
+/** 用于 UI 与 canonical 标签比较（含大小写、空格差异） */
+export function tagKeyEquals(a: string, b: string): boolean {
+  return tagCompareKey(a) === tagCompareKey(b)
+}
+
+export function applyCatalogTagToggle(current: string[], tag: string): string[] {
+  const has = current.some(t => tagKeyEquals(t, tag))
+  if (!has) {
+    const canon = tagCompareKey(tag) === KEY_HIM ? CATALOG_TAG_HIM : tagCompareKey(tag) === KEY_HER ? CATALOG_TAG_HER : tag
+    const other = OPPOSITE[canon] ?? OPPOSITE[tag]
+    const next = other ? current.filter(t => !tagKeyEquals(t, other)) : [...current]
+    return [...next, tagCompareKey(tag) === KEY_HIM || tagCompareKey(tag) === KEY_HER ? canon : tag]
+  }
+  return current.filter(t => !tagKeyEquals(t, tag))
 }

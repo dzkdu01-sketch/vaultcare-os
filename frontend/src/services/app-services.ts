@@ -28,7 +28,9 @@ export const productApi = {
     if (params?.tag) query.set('tag', params.tag)
     if (params?.catalog_in !== undefined && params.catalog_in !== '') query.set('catalog_in', params.catalog_in)
     const qs = query.toString()
-    return apiClient.get<PaginatedList<Product> & { total_sites: number }>(`/product/items${qs ? `?${qs}` : ''}`)
+    return apiClient.get<
+      PaginatedList<Product> & { total_sites: number; db_product_count?: number }
+    >(`/product/items${qs ? `?${qs}` : ''}`)
   },
   getById: (id: string) => apiClient.get<ProductDetail>(`/product/items/${id}`),
   create: (input: ProductInput) => apiClient.post<Product>('/product/items', input),
@@ -39,7 +41,18 @@ export const productApi = {
       `/product/items/${id}/sync`,
       siteIds && siteIds.length > 0 ? { site_ids: siteIds } : {},
     ),
-  syncAll: (site_ids?: string[]) => apiClient.post<{ products: number; synced: number; failed: number }>('/product/items/sync-all', site_ids ? { site_ids } : {}),
+  syncAll: (site_ids?: string[]) =>
+    apiClient.post<{
+      products: number
+      synced: number
+      failed: number
+      details?: Array<{
+        product_id: string
+        sku: string
+        results: SyncResult['results']
+        skipped_images?: string[]
+      }>
+    }>('/product/items/sync-all', site_ids ? { site_ids } : {}),
   pullFromSite: (site_id: string) => apiClient.post<{ total: number; created: number; updated: number; skipped: number }>('/product/items/pull-from-site', { site_id }),
   /** 客户图册长图（PNG 无损），宽 1500px；仅上架 + 进图册 + 对应性别标签 */
   downloadCatalogPng: (audience: 'him' | 'her') => {

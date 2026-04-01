@@ -70,7 +70,8 @@ echo "==> 配置 Nginx"
 cp "$ROOT/deploy/nginx-ip.conf" /etc/nginx/sites-available/vault-os11
 sed -i "s|ROOT_PLACEHOLDER|$ROOT|g" /etc/nginx/sites-available/vault-os11
 
-rm -f /etc/nginx/sites-enabled/vaultcare /etc/nginx/sites-enabled/default
+# 旧站可能名为 vaultcare 或 vaultcare.conf，需全部禁用，否则 80 端口仍指向旧前端
+rm -f /etc/nginx/sites-enabled/vaultcare /etc/nginx/sites-enabled/vaultcare.conf /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/vault-os11 /etc/nginx/sites-enabled/vault-os11
 
 nginx -t

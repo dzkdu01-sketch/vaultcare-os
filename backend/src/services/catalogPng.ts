@@ -4,51 +4,67 @@ const FETCH_CONCURRENCY = 8
 const DECODE_CONCURRENCY = 6
 
 const WIDTH = 1500
-const PAD = 32
-const GAP = 16
-const COLS = 3
-const HEADER_BULLETS = [
+/** 页面外边距：宽松留白（需求：版心统一、四周透气） */
+const PAD = 48
+/** 列间距（参考图：白卡之间透气） */
+const GAP = 20
+/** 参考图：四列展陈 */
+const COLS = 4
+/** 品牌承诺条：三行分条展示（醒目、无独立方框） */
+const HEADER_PROMISE_LINES = [
   'Local Dubai Stock · Ships Fast',
   'Pay with Cash on Delivery',
   'Private & Discreet Shipping',
 ] as const
 
-/** iOS 分组背景 / 标签色（Human Interface Guidelines 近似） */
-const IOS_GROUPED_BG = '#F2F2F7'
-const IOS_LABEL = '#1C1C1E'
-const IOS_SECONDARY = '#8E8E93'
-const IOS_SEPARATOR = 'rgba(60, 60, 67, 0.29)'
+/** 页底：浅冷灰（白卡浮起，对标参考图） */
+const PAGE_BG = '#F2F3F5'
+const CARD_BG = '#FFFFFF'
+const TEXT_PRIMARY = '#1D1D1F'
+const TEXT_SECONDARY = '#6E6E73'
+/** 参考电商主价强调色（与小米系主价橙一致） */
+const PRICE_ACCENT = '#FF6700'
+/** 顶栏/页内发丝线 */
+const RULE_LIGHT = 'rgba(60, 60, 67, 0.18)'
 const FONT_UI = '-apple-system, "SF Pro Text", "SF Pro Display", BlinkMacSystemFont, "Segoe UI", sans-serif'
 const FONT_MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 
-const CATEGORY_BAND_H = 50
-const GAP_AFTER_CATEGORY = 16
+/** 杂志式分类：大字 + 留白（无背景块） */
+const CATEGORY_TITLE_SIZE = 28
+const CATEGORY_BAND_H = 96
+const GAP_AFTER_CATEGORY = 44
 
-/** 卡片：1:1 图区（白底 contain）+ 文案（SKU → 价格 → 标题） */
+/** 白卡内边距；①标题左对齐 ② 左 SKU·供应商 / 右 价格（两端对齐） */
 const CARD_PAD = 16
-/** 图区为正方形：边长 = 列宽 − 左右内边距，运行时等于 imgMaxW */
-/** 文案区固定行高，避免重叠；层级：SKU 最突出 → 价格 → 标题最弱 */
+const CARD_RADIUS = 14
 const IMG_TEXT_GAP = 16
-const SKU_PILL_H = 36
-const SKU_TO_PRICE_GAP = 10
-const PRICE_LINE_H = 28
-const PRICE_TO_TITLE_GAP = 10
+/** 第一行：标题略大、中性灰，单行截断 */
 const TITLE_FONT_PX = 13
-const TITLE_LINE_GAP = 18
-const TITLE_MAX_LINES = 2
-const TEXT_BLOCK_H =
-  IMG_TEXT_GAP +
-  SKU_PILL_H +
-  SKU_TO_PRICE_GAP +
-  PRICE_LINE_H +
-  PRICE_TO_TITLE_GAP +
-  TITLE_LINE_GAP * TITLE_MAX_LINES +
-  10
-const ROW_GAP = 16
-const CARD_RADIUS = 12
+const TITLE_LINE_H = 21
+const TITLE_COLOR = '#3D3D41'
+const TITLE_TO_META_GAP = 12
+/** 第二行：左簇 + 右价；SKU/价数字 24px；供应商弱化 */
+const META_LINE_H = 44
+const SKU_META_PX = 24
+const SUPPLIER_META_PX = 12
+/** SKU 与供应商之间的间隔符（比横杠更轻） */
+const DOT_SEP = ' · '
+const DOT_SEP_PX = 13
+const PRICE_NUM_PX = 24
+const PRICE_CUR_PX = 24
+const SUPPLIER_MUTED = '#AEAEB2'
+/** 左侧信息与价格之间的最小间距 */
+const META_GAP_SKU_PRICE = 14
+const TEXT_BLOCK_H = IMG_TEXT_GAP + TITLE_LINE_H + TITLE_TO_META_GAP + META_LINE_H + 12
+const ROW_GAP = 24
 const IMG_BOX_RADIUS = 10
-/** 产品图占位与 letterbox：纯白 */
-const PRODUCT_IMAGE_BG = '#FFFFFF'
+/** 图区略浅于白卡，托住产品图 */
+const PRODUCT_IMAGE_BG = '#F5F5F7'
+/** 顶栏：浅底 + 深字（避免厚重黑条） */
+const PROMISE_BAR_BG = '#FAFAFA'
+const PROMISE_TEXT = '#1D1D1F'
+const PROMISE_LINE_H = 24
+const PROMISE_PAD_Y = 18
 
 export type CatalogProductRow = {
   sku: string
@@ -57,6 +73,8 @@ export type CatalogProductRow = {
   regular_price: number
   images: string | unknown[] | null
   category?: string | null
+  /** 关联供应商编码，逗号分隔；图册上弱化展示 */
+  supplier_codes?: string | null
 }
 
 function parseImages(raw: CatalogProductRow['images']): string[] {
@@ -72,12 +90,125 @@ function parseImages(raw: CatalogProductRow['images']): string[] {
   return []
 }
 
+function formatPriceNum(n: number): string {
+  const v = Number(n) || 0
+  return Number.isInteger(v) ? String(Math.round(v)) : v.toFixed(2).replace(/\.?0+$/, '')
+}
+
 function priceParts(p: { sale_price: number; regular_price: number }): { num: string; currency: string } {
   const s = Number(p.sale_price) || 0
   const r = Number(p.regular_price) || 0
   const v = s > 0 ? s : r
-  const n = Number.isInteger(v) ? String(Math.round(v)) : v.toFixed(2).replace(/\.?0+$/, '')
-  return { num: n, currency: 'AED' }
+  return { num: formatPriceNum(v), currency: 'AED' }
+}
+
+/** 图册导出时刻（迪拜时区日期，便于业务对齐本地运营日） */
+function catalogGeneratedDateLabel(): string {
+  const s = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
+  return `图册生成 · ${s}`
+}
+
+function measurePriceBlockWidth(ctx: SKRSContext2D, num: string, cur: string): number {
+  ctx.font = `600 ${PRICE_NUM_PX}px ${FONT_UI}`
+  let w = ctx.measureText(num).width
+  ctx.font = `500 ${PRICE_CUR_PX}px ${FONT_UI}`
+  w += ctx.measureText(` ${cur}`).width
+  return w
+}
+
+function measureLeftClusterWidth(ctx: SKRSContext2D, sku: string, supplier: string | null): number {
+  ctx.font = `700 ${SKU_META_PX}px ${FONT_MONO}`
+  let w = ctx.measureText(sku).width
+  if (supplier) {
+    ctx.font = `400 ${DOT_SEP_PX}px ${FONT_UI}`
+    w += ctx.measureText(DOT_SEP).width
+    ctx.font = `400 ${SUPPLIER_META_PX}px ${FONT_MONO}`
+    w += ctx.measureText(supplier).width
+  }
+  return w
+}
+
+/**
+ * 第二行排版：与标题同一左边界；**左侧** SKU · 供应商（弱化），**右侧** 现价 AED（主价橙），两端对齐。
+ */
+function drawMetaSkuSupplierPrice(
+  ctx: SKRSContext2D,
+  textLeft: number,
+  ty: number,
+  p: CatalogProductRow,
+  maxW: number,
+): void {
+  const { num, currency: cur } = priceParts(p)
+  const priceW = measurePriceBlockWidth(ctx, num, cur)
+  const leftBudget = Math.max(48, maxW - priceW - META_GAP_SKU_PRICE)
+
+  const supFull = (p.supplier_codes || '').trim().replace(/\s+/g, ' ')
+  const rawSku = (p.sku || '—').toUpperCase()
+  let sku = rawSku
+  let supplier: string | null = supFull.length > 0 ? supFull : null
+
+  const fitsLeft = (sk: string, su: string | null) => measureLeftClusterWidth(ctx, sk, su) <= leftBudget
+
+  if (!fitsLeft(sku, supplier)) {
+    if (supFull.length > 0) {
+      for (let len = supFull.length; len >= 0; len--) {
+        const cand = len === 0 ? null : len < supFull.length ? `${supFull.slice(0, len)}…` : supFull
+        if (fitsLeft(sku, cand)) {
+          supplier = cand
+          break
+        }
+      }
+    }
+    if (!fitsLeft(sku, supplier)) {
+      for (let len = rawSku.length; len >= 1; len--) {
+        const cand = len < rawSku.length ? `${rawSku.slice(0, len)}…` : rawSku
+        if (fitsLeft(cand, supplier)) {
+          sku = cand
+          break
+        }
+      }
+    }
+  }
+
+  const cy = Math.round(ty + META_LINE_H / 2)
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+
+  let x = Math.round(textLeft)
+  ctx.fillStyle = TEXT_PRIMARY
+  ctx.font = `700 ${SKU_META_PX}px ${FONT_MONO}`
+  ctx.fillText(sku, x, cy)
+  x += ctx.measureText(sku).width
+
+  if (supplier) {
+    ctx.fillStyle = TEXT_SECONDARY
+    ctx.font = `400 ${DOT_SEP_PX}px ${FONT_UI}`
+    ctx.fillText(DOT_SEP, x, cy)
+    x += ctx.measureText(DOT_SEP).width
+    ctx.fillStyle = SUPPLIER_MUTED
+    ctx.font = `400 ${SUPPLIER_META_PX}px ${FONT_MONO}`
+    ctx.fillText(supplier, x, cy)
+  }
+
+  const priceX = Math.round(textLeft + maxW - priceW)
+  ctx.fillStyle = PRICE_ACCENT
+  ctx.font = `600 ${PRICE_NUM_PX}px ${FONT_UI}`
+  const wNum = ctx.measureText(num).width
+  ctx.fillText(num, priceX, cy)
+  ctx.font = `500 ${PRICE_CUR_PX}px ${FONT_UI}`
+  ctx.fillText(` ${cur}`, priceX + wNum, cy)
+
+  ctx.textBaseline = 'alphabetic'
+}
+
+function drawImagePlaceholder(ctx: SKRSContext2D, imgX: number, imgY: number, imgSide: number) {
+  ctx.fillStyle = '#E5E5EA'
+  ctx.font = `500 13px ${FONT_UI}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('暂无图片', imgX + imgSide / 2, imgY + imgSide / 2)
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
 }
 
 /** 与列表排序一致：同分类连续成块 */
@@ -141,24 +272,6 @@ function truncateTextToWidth(ctx: { measureText: (s: string) => { width: number 
   return t + ell
 }
 
-function wrapLines(ctx: { measureText: (s: string) => { width: number } }, text: string, maxW: number, maxLines: number): string[] {
-  const words = text.trim().split(/\s+/).filter(Boolean)
-  const lines: string[] = []
-  let line = ''
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w
-    if (ctx.measureText(test).width > maxW && line) {
-      lines.push(line)
-      line = w
-      if (lines.length >= maxLines) break
-    } else {
-      line = test
-    }
-  }
-  if (lines.length < maxLines && line) lines.push(line)
-  return lines
-}
-
 function roundRectPath(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, r: number) {
   const radius = Math.min(r, w / 2, h / 2)
   ctx.beginPath()
@@ -179,68 +292,26 @@ function fillRoundRect(ctx: SKRSContext2D, x: number, y: number, w: number, h: n
   ctx.fill()
 }
 
-function strokeRoundRect(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, r: number) {
-  roundRectPath(ctx, x, y, w, h, r)
+/** 杂志式分章：左对齐大字 + 短装饰线，无背景方框 */
+function drawCategoryEditorial(ctx: SKRSContext2D, x: number, y: number, w: number, label: string) {
+  const show = label.length > 80 ? `${label.slice(0, 78)}…` : label
+  ctx.fillStyle = TEXT_PRIMARY
+  ctx.font = `600 ${CATEGORY_TITLE_SIZE}px ${FONT_UI}`
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'top'
+  ctx.fillText(show, x, y)
+  const tw = Math.min(ctx.measureText(show).width, w * 0.92)
+  const ruleY = y + CATEGORY_TITLE_SIZE + 12
+  ctx.strokeStyle = RULE_LIGHT
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.moveTo(x, ruleY)
+  ctx.lineTo(x + Math.min(tw, 160), ruleY)
   ctx.stroke()
-}
-
-function drawCategoryBand(
-  ctx: SKRSContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  label: string,
-  _audience: 'him' | 'her',
-) {
-  const r = 12
-  ctx.fillStyle = '#FFFFFF'
-  fillRoundRect(ctx, x, y, w, h, r)
-  ctx.strokeStyle = IOS_SEPARATOR
-  ctx.lineWidth = 1
-  strokeRoundRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, r - 1)
-  const show = label.length > 72 ? `${label.slice(0, 70)}…` : label
-  ctx.fillStyle = IOS_LABEL
-  ctx.font = `600 17px ${FONT_UI}`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(show, x + w / 2, y + h / 2)
-  ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
 }
 
-/** 最高优先级：深色药丸 + 白字大写 SKU（宽度不超过 maxOuterW） */
-function drawSkuPrimaryProminent(
-  ctx: SKRSContext2D,
-  cx: number,
-  yTop: number,
-  sku: string,
-  maxOuterW: number,
-): number {
-  const pillH = SKU_PILL_H
-  const padX = 14
-  ctx.font = `700 19px ${FONT_MONO}`
-  let s = (sku || '—').toUpperCase()
-  const maxInner = Math.max(24, maxOuterW - padX * 2)
-  s = truncateTextToWidth(ctx, s, maxInner)
-  const tw = ctx.measureText(s).width
-  const pillW = Math.min(maxOuterW, tw + padX * 2)
-  const px = cx - pillW / 2
-  ctx.fillStyle = '#1C1C1E'
-  fillRoundRect(ctx, px, yTop, pillW, pillH, 10)
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)'
-  ctx.lineWidth = 1
-  strokeRoundRect(ctx, px + 0.5, yTop + 0.5, pillW - 1, pillH - 1, 9)
-  ctx.fillStyle = '#FFFFFF'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(s, cx, yTop + pillH / 2)
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'alphabetic'
-  return pillH
-}
-
-/** for him / for her 分册 PNG：按分类分节、三列栅格 */
+/** for him / for her 分册 PNG：浅灰底 + 白卡、四列栅格 */
 export async function buildCatalogBrochureImage(
   products: CatalogProductRow[],
   audience: 'him' | 'her',
@@ -255,15 +326,13 @@ export async function buildCatalogBrochureImage(
   const cardH = CARD_PAD + imgSide + TEXT_BLOCK_H + CARD_PAD
   const rowH = cardH + ROW_GAP
 
-  /** iOS「分组」风格：三条卖点各占白卡片，易读 Callout 15pt */
-  const TRUST_CELL_H = 72
-  const TRUST_CELL_GAP = 8
-  const trustStripH = TRUST_CELL_H
-  const trustToTitleGap = 16
-  const headerTop = PAD + trustStripH + trustToTitleGap
-  /** Large Title 约 34pt + 上下留白 */
-  const titleBarH = 88
-  const gridTop = headerTop + titleBarH + 20
+  const PROMISE_BAR_H = PROMISE_PAD_Y * 2 + HEADER_PROMISE_LINES.length * PROMISE_LINE_H
+  const TITLE_AFTER_PROMISE = 32
+  const headerTop = PAD + PROMISE_BAR_H + TITLE_AFTER_PROMISE
+  /** 主标题 + 日期 + 底部分割线（无白底方框） */
+  const titleBarH = 100
+  const GRID_AFTER_TITLE = 36
+  const gridTop = headerTop + titleBarH + GRID_AFTER_TITLE
 
   const blocks = groupByCategory(products)
   let bodyH = 0
@@ -280,66 +349,52 @@ export async function buildCatalogBrochureImage(
   draw.imageSmoothingEnabled = true
   draw.imageSmoothingQuality = 'high'
 
-  ctx.fillStyle = IOS_GROUPED_BG
+  ctx.fillStyle = PAGE_BG
   ctx.fillRect(0, 0, WIDTH, height)
 
-  const trustY = PAD
-  const trustCellR = 10
-  const cellW = (innerW - TRUST_CELL_GAP * 2) / 3
-  HEADER_BULLETS.forEach((raw, i) => {
-    const x = PAD + i * (cellW + TRUST_CELL_GAP)
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.06)'
-    ctx.shadowBlur = 12
-    ctx.shadowOffsetY = 2
-    ctx.fillStyle = '#FFFFFF'
-    fillRoundRect(ctx, x, trustY, cellW, trustStripH, trustCellR)
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetY = 0
-    ctx.strokeStyle = IOS_SEPARATOR
-    ctx.lineWidth = 1
-    strokeRoundRect(ctx, x + 0.5, trustY + 0.5, cellW - 1, trustStripH - 1, trustCellR - 1)
-    const cx = x + cellW / 2
-    ctx.fillStyle = IOS_LABEL
-    ctx.font = `600 15px ${FONT_UI}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    const maxW = cellW - 20
+  const promiseY = PAD
+  ctx.fillStyle = PROMISE_BAR_BG
+  ctx.fillRect(PAD, promiseY, innerW, PROMISE_BAR_H)
+  ctx.fillStyle = PROMISE_TEXT
+  ctx.font = `600 17px ${FONT_UI}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const maxLineW = innerW - 56
+  HEADER_PROMISE_LINES.forEach((raw, i) => {
     let show: string = raw
-    if (ctx.measureText(show).width > maxW) {
-      while (show.length > 1 && ctx.measureText(`${show}…`).width > maxW) {
+    if (ctx.measureText(show).width > maxLineW) {
+      while (show.length > 1 && ctx.measureText(`${show}…`).width > maxLineW) {
         show = show.slice(0, -1)
       }
       show = `${show}…`
     }
-    ctx.fillText(show, cx, trustY + trustStripH / 2)
+    const lineY = promiseY + PROMISE_PAD_Y + PROMISE_LINE_H * i + PROMISE_LINE_H / 2
+    ctx.fillText(show, WIDTH / 2, lineY)
   })
+  ctx.strokeStyle = RULE_LIGHT
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(PAD, promiseY + PROMISE_BAR_H)
+  ctx.lineTo(PAD + innerW, promiseY + PROMISE_BAR_H)
+  ctx.stroke()
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
 
   const barY = headerTop
-  const barR = 12
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.08)'
-  ctx.shadowBlur = 16
-  ctx.shadowOffsetY = 4
-  ctx.fillStyle = '#FFFFFF'
-  fillRoundRect(ctx, PAD, barY, innerW, titleBarH, barR)
-  ctx.shadowBlur = 0
-  ctx.shadowOffsetY = 0
-  ctx.strokeStyle = IOS_SEPARATOR
-  ctx.lineWidth = 1
-  strokeRoundRect(ctx, PAD + 0.5, barY + 0.5, innerW - 1, titleBarH - 1, barR - 1)
-  ctx.strokeStyle = IOS_SEPARATOR
-  ctx.lineWidth = 0.5
-  ctx.beginPath()
-  ctx.moveTo(PAD + barR, barY + titleBarH - 0.5)
-  ctx.lineTo(PAD + innerW - barR, barY + titleBarH - 0.5)
-  ctx.stroke()
-
-  ctx.fillStyle = IOS_LABEL
-  ctx.font = `700 34px ${FONT_UI}`
+  ctx.fillStyle = TEXT_PRIMARY
+  ctx.font = `700 36px ${FONT_UI}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(titleText, WIDTH / 2, barY + titleBarH / 2 - 2)
+  ctx.fillText(titleText, WIDTH / 2, barY + 38)
+  ctx.fillStyle = TEXT_SECONDARY
+  ctx.font = `500 12px ${FONT_UI}`
+  ctx.fillText(catalogGeneratedDateLabel(), WIDTH / 2, barY + 76)
+  ctx.strokeStyle = RULE_LIGHT
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(PAD, barY + titleBarH - 1)
+  ctx.lineTo(PAD + innerW, barY + titleBarH - 1)
+  ctx.stroke()
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
 
@@ -356,7 +411,7 @@ export async function buildCatalogBrochureImage(
 
   let yCursor = gridTop
   for (const block of blocks) {
-    drawCategoryBand(ctx, PAD, yCursor, innerW, CATEGORY_BAND_H, block.label, audience)
+    drawCategoryEditorial(ctx, PAD, yCursor, innerW, block.label)
     yCursor += CATEGORY_BAND_H + GAP_AFTER_CATEGORY
 
     const n = block.indices.length
@@ -373,23 +428,20 @@ export async function buildCatalogBrochureImage(
 
         const imgX = x0 + CARD_PAD
         const imgY = y0 + CARD_PAD
+        /** 与第一行共用左边界；第二行为左 SKU·供应商 / 右价格（两端对齐） */
+        const textLeft = x0 + CARD_PAD
+        const textMaxW = colW - CARD_PAD * 2
 
+        ctx.save()
         ctx.shadowColor = 'rgba(0, 0, 0, 0.06)'
-        ctx.shadowBlur = 12
-        ctx.shadowOffsetY = 3
-        ctx.fillStyle = '#FFFFFF'
+        ctx.shadowBlur = 22
+        ctx.shadowOffsetY = 8
+        ctx.fillStyle = CARD_BG
         fillRoundRect(ctx, x0, y0, colW, cardH, CARD_RADIUS)
-        ctx.shadowBlur = 0
-        ctx.shadowOffsetY = 0
-        ctx.strokeStyle = IOS_SEPARATOR
-        ctx.lineWidth = 1
-        strokeRoundRect(ctx, x0 + 0.5, y0 + 0.5, colW - 1, cardH - 1, CARD_RADIUS - 1)
+        ctx.restore()
 
         ctx.fillStyle = PRODUCT_IMAGE_BG
         fillRoundRect(ctx, imgX, imgY, imgSide, imgSide, IMG_BOX_RADIUS)
-        ctx.strokeStyle = 'rgba(60, 60, 67, 0.12)'
-        ctx.lineWidth = 1
-        strokeRoundRect(ctx, imgX + 0.5, imgY + 0.5, imgSide - 1, imgSide - 1, IMG_BOX_RADIUS - 1)
 
         if (img) {
           const iw = img.width
@@ -404,39 +456,21 @@ export async function buildCatalogBrochureImage(
           ctx.clip()
           ctx.drawImage(img, dx, dy, dw, dh)
           ctx.restore()
+        } else {
+          drawImagePlaceholder(ctx, imgX, imgY, imgSide)
         }
 
-        const cx = x0 + colW / 2
-        const textMaxW = imgSide - 8
         let ty = imgY + imgSide + IMG_TEXT_GAP
-        drawSkuPrimaryProminent(ctx, cx, ty, p.sku || '—', textMaxW)
-        ty += SKU_PILL_H + SKU_TO_PRICE_GAP
 
-        const { num, currency } = priceParts(p)
-        ctx.textBaseline = 'top'
+        ctx.font = `500 ${TITLE_FONT_PX}px ${FONT_UI}`
         ctx.textAlign = 'left'
-        ctx.font = `600 22px ${FONT_UI}`
-        const wNum = ctx.measureText(num).width
-        ctx.font = `400 17px ${FONT_UI}`
-        const wCur = ctx.measureText(` ${currency}`).width
-        const totalW = wNum + wCur
-        const priceLeft = cx - totalW / 2
-        ctx.fillStyle = IOS_LABEL
-        ctx.font = `600 22px ${FONT_UI}`
-        ctx.fillText(num, priceLeft, ty)
-        ctx.fillStyle = IOS_SECONDARY
-        ctx.font = `400 17px ${FONT_UI}`
-        ctx.fillText(` ${currency}`, priceLeft + wNum, ty)
-        ty += PRICE_LINE_H + PRICE_TO_TITLE_GAP
-
-        ctx.font = `400 ${TITLE_FONT_PX}px ${FONT_UI}`
-        ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
-        const nameLines = wrapLines(ctx, p.name || '—', textMaxW, TITLE_MAX_LINES)
-        nameLines.forEach((ln, li) => {
-          ctx.fillStyle = IOS_SECONDARY
-          ctx.fillText(ln, cx, ty + li * TITLE_LINE_GAP)
-        })
+        const titleShow = truncateTextToWidth(ctx, (p.name || '—').trim() || '—', textMaxW)
+        ctx.fillStyle = TITLE_COLOR
+        ctx.fillText(titleShow, textLeft, ty)
+        ty += TITLE_LINE_H + TITLE_TO_META_GAP
+
+        drawMetaSkuSupplierPrice(ctx, textLeft, ty, p, textMaxW)
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
       }

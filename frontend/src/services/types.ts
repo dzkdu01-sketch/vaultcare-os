@@ -182,6 +182,8 @@ export type SyncResult = {
     success: boolean
     error?: string
   }>
+  /** 编辑页填写但远程不可访问、已跳过未推送到 Woo 的图片 URL */
+  skipped_images?: string[]
 }
 
 export type PullResult = {

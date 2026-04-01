@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { HtmlPreviewPane } from '../../components/shared/HtmlPreviewPane'
-import { applyCatalogTagToggle } from '../../lib/catalogTags'
+import { applyCatalogTagToggle, dedupeGenderCatalogTags, tagKeyEquals } from '../../lib/catalogTags'
 import {
   DEFAULT_PRODUCT_CATEGORIES,
   DEFAULT_PRODUCT_TAGS,
@@ -17,6 +17,23 @@ import type { ProductInput } from '../../services/types'
 
 /** 产品图默认前缀（ImageKit pic 路径），与资源命名 `{SKU}-n.webp` 一致 */
 const PRODUCT_IMAGE_BASE = 'https://ik.imagekit.io/vaultcare/pic/'
+/** 长描述主视频：ImageKit video 路径，与 `{SKU}-s1.mp4`、`{SKU}-s2.mp4` … 一致 */
+const PRODUCT_VIDEO_BASE = 'https://ik.imagekit.io/vaultcare/video/'
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** 根据当前正文已有链接，计算下一个视频序号（s1、s2…） */
+function nextVideoIndexForSku(description: string, sku: string): number {
+  const re = new RegExp(`${escapeRegExp(sku.trim())}-s(\\d+)\\.mp4`, 'gi')
+  let max = 0
+  for (const m of description.matchAll(re)) {
+    const n = parseInt(m[1], 10)
+    if (!Number.isNaN(n)) max = Math.max(max, n)
+  }
+  return max + 1
+}
 /** 固定 4 张：{SKU}-1.webp … {SKU}-4.webp，首行作列表缩略图 */
 const FIXED_IMAGE_SLOTS = 4
 
@@ -215,7 +232,8 @@ export function ProductFormPage() {
           ? buildDefaultProductImageUrls(data.sku)
           : parsedImages
       setSku(data.sku)
-      const tags = typeof data.tags === 'string' ? JSON.parse(data.tags || '[]') : (data.tags || [])
+      const rawTags = typeof data.tags === 'string' ? JSON.parse(data.tags || '[]') : (data.tags || [])
+      const tags = dedupeGenderCatalogTags(rawTags)
       setForm({
         name: data.name,
         short_description: data.short_description || '',
@@ -272,10 +290,38 @@ export function ProductFormPage() {
 
   const set = (field: keyof ProductInput, value: unknown) => setForm(f => ({ ...f, [field]: value }))
 
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const insertNextProductVideoLine = useCallback(() => {
+    const s = sku.trim()
+    if (!s) {
+      alert('请先填写并保存商品，获得 SKU 后再插入视频。')
+      return
+    }
+    const ta = descriptionTextareaRef.current
+    setForm(f => {
+      const val = f.description ?? ''
+      const idx = nextVideoIndexForSku(val, s)
+      const snippet = `${PRODUCT_VIDEO_BASE}${s}-s${idx}.mp4\n`
+      if (!ta) {
+        return { ...f, description: val + snippet }
+      }
+      const start = ta.selectionStart
+      const end = ta.selectionEnd
+      const next = val.slice(0, start) + snippet + val.slice(end)
+      requestAnimationFrame(() => {
+        ta.focus()
+        const pos = start + snippet.length
+        ta.setSelectionRange(pos, pos)
+      })
+      return { ...f, description: next }
+    })
+  }, [sku])
+
   const toggleTag = (tag: string) => {
     const current = form.tags || []
-    if (current.includes(tag)) {
-      set('tags', current.filter(t => t !== tag))
+    if (current.some(t => tagKeyEquals(t, tag))) {
+      set('tags', current.filter(t => !tagKeyEquals(t, tag)))
     } else {
       set('tags', applyCatalogTagToggle(current, tag))
     }
@@ -315,10 +361,16 @@ export function ProductFormPage() {
       const result = await productApi.sync(id, selectedSyncSites)
       const ok = result.results.filter(r => r.success).length
       const fail = result.results.filter(r => !r.success).length
+      const siteCount = result.results.length
       const lines = result.results.map(
         r => `${r.site_name}: ${r.success ? '成功' : `失败 ${r.error || ''}`}`,
       )
-      alert(`同步完成：成功 ${ok}，失败 ${fail}\n${lines.join('\n')}`)
+      const skipped = result.skipped_images?.length
+        ? `\n\n已跳过无法访问的图片（未推送到站点，其余内容已同步）：\n${result.skipped_images.join('\n')}`
+        : ''
+      alert(
+        `同步完成（仅当前编辑的这一件商品；已选 ${siteCount} 个站点）：${ok} 个站点成功，${fail} 个站点失败\n${lines.join('\n')}${skipped}`,
+      )
       setSyncModalOpen(false)
     } catch (err: any) {
       const msg = err.message || '同步失败'
@@ -479,7 +531,7 @@ export function ProductFormPage() {
                   <label className="mb-2 block text-sm font-medium text-slate-700">标签</label>
                   <div className="flex flex-wrap gap-2">
                     {tags.map(tag => {
-                      const selected = (form.tags || []).includes(tag)
+                      const selected = (form.tags || []).some(t => tagKeyEquals(t, tag))
                       return (
                         <button
                           key={tag}
@@ -565,17 +617,30 @@ export function ProductFormPage() {
           <FormSection
             id="section-desc"
             title="长描述"
-            description="可含视频等富媒体 HTML；右侧为消毒后预览，与短描述规则一致。"
+            description="左侧直接输入介绍文字（无需写 HTML）；每行一条视频或图片链接会自动在右侧预览。详情商品图请在下方「图片」四槽位维护。"
+            headerExtra={
+              <button
+                type="button"
+                disabled={!sku.trim()}
+                title={sku.trim() ? '按当前 SKU 插入 ImageKit 视频链接（s1、s2… 递增）' : '请先保存商品以生成 SKU'}
+                onClick={() => insertNextProductVideoLine()}
+                className="rounded-lg border border-violet-200 bg-violet-50/80 px-2.5 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                插入视频
+              </button>
+            }
           >
             <div className="grid min-h-0 grid-cols-1 gap-4 xl:min-h-[440px] xl:grid-cols-2 xl:gap-6">
               <div className="flex min-h-[280px] flex-col xl:min-h-0">
                 <label className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  源码
+                  正文
                 </label>
                 <textarea
+                  ref={descriptionTextareaRef}
                   value={form.description || ''}
                   onChange={e => set('description', e.target.value)}
-                  className="min-h-[280px] w-full flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500 xl:min-h-0"
+                  placeholder="在此输入文字介绍。需要主视频时点击「插入视频」，将按 SKU 自动填入 ImageKit 链接（每点多一次依次为 s1、s2…）。"
+                  className="min-h-[280px] w-full flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 xl:min-h-0"
                 />
               </div>
               <HtmlPreviewPane

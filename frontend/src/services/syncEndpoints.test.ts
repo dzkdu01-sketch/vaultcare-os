@@ -16,4 +16,9 @@ describe('sync API paths', () => {
   it('sync-all path is fixed suffix', () => {
     expect('/product/items/sync-all').toMatch(/\/items\/sync-all$/)
   })
+
+  it('sync-batch and id-list are not captured by /items/:id', () => {
+    expect('/product/items/sync-batch').toMatch(/\/items\/sync-batch$/)
+    expect('/product/items/id-list').toMatch(/\/items\/id-list$/)
+  })
 })

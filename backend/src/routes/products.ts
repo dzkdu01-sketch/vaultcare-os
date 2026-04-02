@@ -219,6 +219,13 @@ productRouter.patch('/items/catalog-batch', (req: Request, res: Response) => {
   respond(res, { updated, failed, count: updated.length })
 })
 
+// GET /items/id-list — 须在 /items/:id 之前注册，避免 id 被当成路由参数
+productRouter.get('/items/id-list', (_req: Request, res: Response) => {
+  const db = getDb()
+  const rows = db.all('SELECT id FROM products ORDER BY sku COLLATE NOCASE ASC') as { id: string }[]
+  respond(res, { ids: rows.map((r) => r.id) })
+})
+
 // GET /items/:id
 productRouter.get('/items/:id', (req: Request, res: Response) => {
   const db = getDb()
@@ -328,6 +335,80 @@ productRouter.delete('/items/:id', (req: Request, res: Response) => {
   respond(res, { deleted: true })
 })
 
+/** 共用同步循环；mode=full 时写 agentLog（全量单请求） */
+async function runSyncLoopForProducts(
+  products: any[],
+  site_ids: string[] | undefined,
+  mode: 'full' | 'batch',
+): Promise<{
+  products: number
+  synced: number
+  failed: number
+  details: Array<{ product_id: string; sku: string; results: any[]; skipped_images: string[] }>
+}> {
+  const allResults: Array<{ product_id: string; sku: string; results: any[]; skipped_images: string[] }> = []
+  const t0 = Date.now()
+  if (mode === 'full') {
+    agentLog({
+      hypothesisId: 'H1',
+      location: 'products.ts:sync-all',
+      message: 'sync-all start',
+      data: { runId: 'pre-fix', productCount: products.length, cwd: process.cwd() },
+    })
+  }
+
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i]
+    const { results, skipped_images } = await syncProductToSites(product, site_ids)
+    allResults.push({ product_id: product.id, sku: product.sku, results, skipped_images })
+    if (mode === 'full') {
+      agentLog({
+        hypothesisId: 'H1',
+        location: 'products.ts:sync-all',
+        message: 'sync-all product done',
+        data: {
+          runId: 'pre-fix',
+          index: i,
+          sku: product.sku,
+          elapsedMs: Date.now() - t0,
+          siteResults: results.length,
+        },
+      })
+    }
+  }
+
+  const totalSynced = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => x.success).length, 0)
+  const totalFailed = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => !x.success).length, 0)
+
+  if (mode === 'full') {
+    agentLog({
+      hypothesisId: 'H1',
+      location: 'products.ts:sync-all',
+      message: 'sync-all complete',
+      data: { runId: 'pre-fix', totalMs: Date.now() - t0, products: allResults.length, totalSynced, totalFailed },
+    })
+  }
+
+  return { products: allResults.length, synced: totalSynced, failed: totalFailed, details: allResults }
+}
+
+// POST /items/sync-batch — 分批同步，避免单次 HTTP 超过 Nginx 默认 60s 导致 504
+productRouter.post('/items/sync-batch', async (req: Request, res: Response) => {
+  const db = getDb()
+  const { site_ids, product_ids } = req.body || {}
+  if (!Array.isArray(product_ids) || product_ids.length === 0) {
+    return respondError(res, 'Missing or empty product_ids')
+  }
+  const placeholders = product_ids.map(() => '?').join(',')
+  const found = db.all(`SELECT * FROM products WHERE id IN (${placeholders})`, product_ids) as any[]
+  const byId = new Map(found.map((p) => [p.id, p]))
+  const ordered = product_ids.map((id: string) => byId.get(id)).filter(Boolean) as any[]
+  if (ordered.length === 0) return respondError(res, 'No matching products', 400)
+
+  const out = await runSyncLoopForProducts(ordered, site_ids, 'batch')
+  respond(res, out)
+})
+
 // POST /items/sync-all — 须注册在 /items/:id/sync 之前，避免路径被误解析（防御性顺序）
 productRouter.post('/items/sync-all', async (req: Request, res: Response) => {
   const db = getDb()
@@ -335,45 +416,8 @@ productRouter.post('/items/sync-all', async (req: Request, res: Response) => {
   const products = db.all('SELECT * FROM products') as any[]
   if (products.length === 0) return respondError(res, 'No products to sync')
 
-  const t0 = Date.now()
-  agentLog({
-    hypothesisId: 'H1',
-    location: 'products.ts:sync-all',
-    message: 'sync-all start',
-    data: { runId: 'pre-fix', productCount: products.length, cwd: process.cwd() },
-  })
-
-  const allResults: Array<{ product_id: string; sku: string; results: any[]; skipped_images: string[] }> = []
-
-  for (let i = 0; i < products.length; i++) {
-    const product = products[i]
-    const { results, skipped_images } = await syncProductToSites(product, site_ids)
-    allResults.push({ product_id: product.id, sku: product.sku, results, skipped_images })
-    agentLog({
-      hypothesisId: 'H1',
-      location: 'products.ts:sync-all',
-      message: 'sync-all product done',
-      data: {
-        runId: 'pre-fix',
-        index: i,
-        sku: product.sku,
-        elapsedMs: Date.now() - t0,
-        siteResults: results.length,
-      },
-    })
-  }
-
-  const totalSynced = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => x.success).length, 0)
-  const totalFailed = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => !x.success).length, 0)
-
-  agentLog({
-    hypothesisId: 'H1',
-    location: 'products.ts:sync-all',
-    message: 'sync-all complete',
-    data: { runId: 'pre-fix', totalMs: Date.now() - t0, products: allResults.length, totalSynced, totalFailed },
-  })
-
-  respond(res, { products: allResults.length, synced: totalSynced, failed: totalFailed, details: allResults })
+  const out = await runSyncLoopForProducts(products, site_ids, 'full')
+  respond(res, out)
 })
 
 // POST /items/:id/sync — 仅同步这一件商品到各站点

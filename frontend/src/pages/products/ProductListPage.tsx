@@ -4,7 +4,7 @@ import { CATALOG_TAG_HER, CATALOG_TAG_HIM, hasGenderCatalogTag, normalizeCatalog
 import { DEFAULT_PRODUCT_CATEGORIES, parseTaxonomyJson } from '../../lib/productTaxonomy'
 import { ApiError } from '../../services/api-client'
 import { productApi, settingsApi, siteApi } from '../../services/app-services'
-import type { Product, Pagination, Site } from '../../services/types'
+import type { Product, Pagination, Site, SyncResult } from '../../services/types'
 
 type EditingCell = { id: string; field: string } | null
 
@@ -132,9 +132,30 @@ export function ProductListPage() {
     if (!confirm(msg)) return
     setShowSyncMenu(false)
     setSyncingAll(true)
+    /** 每批件数略小于 Nginx 常见 60s 上限，避免单请求 504（服务端仍支持一次 sync-all） */
+    const BATCH_SIZE = 6
     try {
-      const result = await productApi.syncAll(selectedSyncSites)
-      const withSkips = result.details?.filter(d => (d.skipped_images?.length ?? 0) > 0) ?? []
+      const { ids } = await productApi.listIds()
+      if (ids.length === 0) {
+        alert('本地无商品可同步')
+        return
+      }
+      let synced = 0
+      let failed = 0
+      const detailsAccum: Array<{
+        product_id: string
+        sku: string
+        results: SyncResult['results']
+        skipped_images?: string[]
+      }> = []
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const chunk = ids.slice(i, i + BATCH_SIZE)
+        const result = await productApi.syncBatch(chunk, selectedSyncSites)
+        synced += result.synced
+        failed += result.failed
+        if (result.details?.length) detailsAccum.push(...result.details)
+      }
+      const withSkips = detailsAccum.filter(d => (d.skipped_images?.length ?? 0) > 0)
       const skipHint =
         withSkips.length > 0
           ? `\n\n${withSkips.length} 件商品有图片因远程不可访问被跳过（其余内容已同步），SKU 示例：${withSkips
@@ -143,11 +164,16 @@ export function ProductListPage() {
               .join(', ')}${withSkips.length > 8 ? '…' : ''}`
           : ''
       alert(
-        `全量同步完成：共 ${result.products} 件商品参与；按站点计成功 ${result.synced} 次、失败 ${result.failed} 次。${skipHint}`,
+        `全量同步完成：共 ${ids.length} 件商品参与；按站点计成功 ${synced} 次、失败 ${failed} 次。${skipHint}`,
       )
       loadProducts(pagination.page)
     } catch (err: any) {
-      alert(`同步失败: ${err.message}`)
+      const raw = err?.message ?? String(err)
+      const short =
+        raw.includes('504') || raw.includes('Gateway Time-out')
+          ? '网关超时。若商品很多，可把每批件数改小或联系管理员加大 Nginx proxy_read_timeout。'
+          : raw
+      alert(`同步失败: ${short}`)
     } finally {
       setSyncingAll(false)
     }

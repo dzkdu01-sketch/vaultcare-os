@@ -41,6 +41,21 @@ export const productApi = {
       `/product/items/${id}/sync`,
       siteIds && siteIds.length > 0 ? { site_ids: siteIds } : {},
     ),
+  /** 全部商品 id（sku 排序），用于分批全量同步 */
+  listIds: () => apiClient.get<{ ids: string[] }>('/product/items/id-list'),
+  /** 仅同步指定 id，与 sync-all 响应结构相同 */
+  syncBatch: (product_ids: string[], site_ids?: string[]) =>
+    apiClient.post<{
+      products: number
+      synced: number
+      failed: number
+      details?: Array<{
+        product_id: string
+        sku: string
+        results: SyncResult['results']
+        skipped_images?: string[]
+      }>
+    }>('/product/items/sync-batch', { product_ids, ...(site_ids && site_ids.length > 0 ? { site_ids } : {}) }),
   syncAll: (site_ids?: string[]) =>
     apiClient.post<{
       products: number

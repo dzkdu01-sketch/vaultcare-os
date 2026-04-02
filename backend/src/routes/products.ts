@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { Router, Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import {
@@ -13,6 +15,25 @@ import { buildCatalogBrochureImage } from '../services/catalogPng.js'
 import { createProduct, updateProduct, findProductBySku, fetchAllProducts, WooSite } from '../services/woo-client.js'
 
 export const productRouter = Router()
+
+// #region agent log
+const DEBUG_SESSION = '3e75d0'
+const DEBUG_LOG_PATH = path.join(process.cwd(), '..', 'debug-3e75d0.log')
+const DEBUG_INGEST = 'http://127.0.0.1:7283/ingest/f336a3af-82ec-4f5a-8d73-8f982dad1000'
+function agentLog(payload: Record<string, unknown>) {
+  const base = { sessionId: DEBUG_SESSION, timestamp: Date.now(), ...payload }
+  try {
+    fs.appendFileSync(DEBUG_LOG_PATH, `${JSON.stringify(base)}\n`)
+  } catch {
+    /* ignore */
+  }
+  fetch(DEBUG_INGEST, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': DEBUG_SESSION },
+    body: JSON.stringify(base),
+  }).catch(() => {})
+}
+// #endregion
 
 function now() { return new Date().toISOString() }
 function respond(res: Response, data: unknown, code = 200) { res.status(code).json({ code, message: 'ok', data }) }
@@ -314,15 +335,43 @@ productRouter.post('/items/sync-all', async (req: Request, res: Response) => {
   const products = db.all('SELECT * FROM products') as any[]
   if (products.length === 0) return respondError(res, 'No products to sync')
 
+  const t0 = Date.now()
+  agentLog({
+    hypothesisId: 'H1',
+    location: 'products.ts:sync-all',
+    message: 'sync-all start',
+    data: { runId: 'pre-fix', productCount: products.length, cwd: process.cwd() },
+  })
+
   const allResults: Array<{ product_id: string; sku: string; results: any[]; skipped_images: string[] }> = []
 
-  for (const product of products) {
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i]
     const { results, skipped_images } = await syncProductToSites(product, site_ids)
     allResults.push({ product_id: product.id, sku: product.sku, results, skipped_images })
+    agentLog({
+      hypothesisId: 'H1',
+      location: 'products.ts:sync-all',
+      message: 'sync-all product done',
+      data: {
+        runId: 'pre-fix',
+        index: i,
+        sku: product.sku,
+        elapsedMs: Date.now() - t0,
+        siteResults: results.length,
+      },
+    })
   }
 
   const totalSynced = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => x.success).length, 0)
   const totalFailed = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => !x.success).length, 0)
+
+  agentLog({
+    hypothesisId: 'H1',
+    location: 'products.ts:sync-all',
+    message: 'sync-all complete',
+    data: { runId: 'pre-fix', totalMs: Date.now() - t0, products: allResults.length, totalSynced, totalFailed },
+  })
 
   respond(res, { products: allResults.length, synced: totalSynced, failed: totalFailed, details: allResults })
 })
@@ -457,6 +506,16 @@ async function filterReachableImageUrls(urls: string[]): Promise<{ ok: string[];
 
 type SyncSiteResult = { site_id: string; site_name: string; success: boolean; error?: string }
 
+/** Woo 端商品已删但本地仍保留 woo_product_id 时，PUT 会返回 invalid_id */
+function isStaleWooProductIdError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return (
+    msg.includes('woocommerce_rest_product_invalid_id')
+    || msg.includes('Invalid ID')
+    || /"code"\s*:\s*"woocommerce_rest_product_invalid_id"/.test(msg)
+  )
+}
+
 // 共用的同步逻辑；不可访问的图片写入 skipped_images，不阻塞其余字段
 async function syncProductToSites(
   product: any,
@@ -497,8 +556,26 @@ async function syncProductToSites(
 
       let wooId: number
       if (existing?.woo_product_id) {
-        const updated = await updateProduct(wooSite, existing.woo_product_id, wooProduct)
-        wooId = updated.id!
+        try {
+          const updated = await updateProduct(wooSite, existing.woo_product_id, wooProduct)
+          wooId = updated.id!
+        } catch (e) {
+          if (!isStaleWooProductIdError(e)) throw e
+          agentLog({
+            hypothesisId: 'H-stale-woo-id',
+            location: 'products.ts:syncProductToSites',
+            message: 'stale woo_product_id, fallback sku or create',
+            data: { sku: product.sku, staleWooId: existing.woo_product_id, site_id: site.id },
+          })
+          const found = await findProductBySku(wooSite, product.sku)
+          if (found?.id) {
+            const updated = await updateProduct(wooSite, found.id, wooProduct)
+            wooId = updated.id!
+          } else {
+            const created = await createProduct(wooSite, wooProduct)
+            wooId = created.id!
+          }
+        }
       } else {
         const found = await findProductBySku(wooSite, product.sku)
         if (found?.id) {

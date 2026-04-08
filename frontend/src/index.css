@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+/*
+  Vaultcare · Spaceship-inspired shell
+  Tokens align with plan: nav #0073B1, sub-nav deeper blue, primary actions same family.
+  (ui-ux-pro-max CLI was not runnable in this environment; values merged manually.)
+*/
+
+@theme {
+  --color-primary: #0073b1;
+  --color-primary-hover: #005f96;
+  --color-primary-muted: #e8f4fc;
+  --color-primary-border: #b3d4e8;
+  --color-primary-foreground: #ffffff;
+  --color-primary-ring: #3d9fd9;
+  /* 参考 Spaceship：双层顶栏统一深海军蓝（与主按钮蓝 #0073b1 区分） */
+  --color-shell-nav: #0c2340;
+  --color-nav-sub: #0c2340;
+  --color-page: #f1f5f9;
+  --radius-shell-card: 1rem;
+  /* Spaceship 式：Inter 拉丁 + Noto Sans SC 中文，与参考模板一致 */
+  --font-sans: Inter, 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', ui-sans-serif,
+    system-ui, sans-serif;
+}
+
 html,
 body,
 #root {
@@ -8,20 +31,50 @@ body,
 
 :root {
   color: #0f172a;
-  background-color: #f8fafc;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  background-color: var(--color-page);
+  font-family: var(--font-sans);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
-  background: #f8fafc;
+  background: var(--color-page);
   color: #0f172a;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/** SKU / 货号：等宽 + 数字 0 与字母 O、数字 8 区分更明显（JetBrains Mono） */
+.font-sku {
+  font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'Roboto Mono', Menlo, Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
 }
 
 * {
   box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Shell: focus on blue nav — high-contrast rings */
+.shell-nav-focus:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
 }
 
 .status-badge {
@@ -32,4 +85,11 @@ body {
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.25rem;
+}
+
+/* Empty / placeholder panel — soft wave gradient (no external asset) */
+.shell-placeholder-wave {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 100%, rgba(148, 163, 184, 0.25) 0%, transparent 55%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
 }

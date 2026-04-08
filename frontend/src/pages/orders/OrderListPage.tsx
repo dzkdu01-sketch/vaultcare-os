@@ -65,9 +65,10 @@ export function OrderListPage() {
   const handleFilter = () => loadOrders(1)
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2 items-center">
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2 items-center">
           <select
             value={filters.site_id}
             onChange={e => setFilters(f => ({ ...f, site_id: e.target.value }))}
@@ -97,10 +98,11 @@ export function OrderListPage() {
         <button
           onClick={handlePull}
           disabled={pulling}
-          className="px-4 py-2 bg-violet-600 text-white text-sm rounded-md hover:bg-violet-700 disabled:opacity-50"
+          className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
         >
           {pulling ? 'Pulling...' : 'Pull Orders'}
         </button>
+        </div>
       </div>
 
       {statusCounts.all > 0 && (
@@ -112,7 +114,7 @@ export function OrderListPage() {
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>

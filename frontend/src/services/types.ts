@@ -42,6 +42,8 @@ export type Product = {
 
 export type ProductInput = {
   name: string
+  /** 仅更新时传入；新建由后端自动生成 */
+  sku?: string
   short_description?: string
   description?: string
   sale_price?: number

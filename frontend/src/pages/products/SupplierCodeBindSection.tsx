@@ -162,21 +162,6 @@ export function SupplierCodeBindSection({ productId, embedded = false }: Props) 
 
   return (
     <div className={shellClass}>
-      {!embedded && (
-        <div>
-          <h3 className="text-sm font-semibold text-slate-800">供应商编码</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            从已导入、未绑定的货源中搜索并绑定。每个供应商最多一条关联。
-          </p>
-        </div>
-      )}
-
-      <div className="rounded-md border border-sky-200 bg-sky-50/90 px-3 py-2.5 text-xs text-sky-950 leading-relaxed">
-        <span className="font-semibold">更换编码（同一家供应商）：</span>
-        请先在下方「已绑定」中找到该供应商，点击 <strong>移除</strong>，再在搜索框中绑定新的导入行。
-        若搜不到，通常是因为该供应商仍显示在「已绑定」中，或导入表中尚无对应未映射记录。
-      </div>
-
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="space-y-2">
@@ -190,10 +175,10 @@ export function SupplierCodeBindSection({ productId, embedded = false }: Props) 
             {mappings.map(m => (
               <li
                 key={m.id}
-                className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-sm text-violet-900"
+                className="inline-flex items-center gap-2 rounded-full border border-primary-border bg-primary-muted px-3 py-1 text-sm text-slate-900"
               >
                 <span className="font-medium">{m.supplier_name}</span>
-                <span className="font-mono text-xs text-violet-700">{m.supplier_code}</span>
+                <span className="font-sku text-xs text-primary">{m.supplier_code}</span>
                 {m.cost_price != null && (
                   <span className="text-xs text-slate-500">成本 AED {m.cost_price}</span>
                 )}
@@ -211,7 +196,6 @@ export function SupplierCodeBindSection({ productId, embedded = false }: Props) 
       </div>
 
       <div ref={wrapRef} className="relative space-y-2">
-        <p className="text-xs font-medium text-slate-600">搜索并添加（已关联的供应商不会出现在结果中）</p>
         <div className="flex flex-wrap gap-2">
           <select
             value={supplierFilter}
@@ -229,7 +213,7 @@ export function SupplierCodeBindSection({ productId, embedded = false }: Props) 
             onChange={e => { setKeyword(e.target.value); setPanelOpen(true) }}
             onFocus={() => setPanelOpen(true)}
             placeholder="输入编码或商品名称关键字…"
-            className="flex-1 min-w-[200px] px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="min-w-[200px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
         {panelOpen && keyword.trim().length >= 1 && (
@@ -249,7 +233,7 @@ export function SupplierCodeBindSection({ productId, embedded = false }: Props) 
                       className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
                     >
                       <div className="font-medium text-slate-900">{row.supplier_name}</div>
-                      <div className="font-mono text-xs text-violet-700">{row.supplier_code}</div>
+                      <div className="font-sku text-xs text-primary">{row.supplier_code}</div>
                       <div className="text-xs text-slate-500 line-clamp-2">{row.product_name}</div>
                       {row.cost_price_aed != null && (
                         <div className="text-xs text-slate-400">供货价 AED {row.cost_price_aed}</div>
@@ -261,24 +245,18 @@ export function SupplierCodeBindSection({ productId, embedded = false }: Props) 
             )}
           </div>
         )}
-        {keyword.trim().length < 1 && (
-          <p className="text-xs text-slate-400">至少输入 1 个字符开始搜索</p>
-        )}
       </div>
 
       <div className="border-t border-slate-100 pt-3">
         <button
           type="button"
           onClick={() => setShowManual(v => !v)}
-          className="text-sm text-violet-600 hover:text-violet-800"
+          className="text-sm text-primary hover:text-primary-hover"
         >
           {showManual ? '收起' : '手动添加（未在导入表）'}
         </button>
         {showManual && (
           <div className="mt-3 space-y-2 rounded-md border border-slate-200 bg-slate-50/80 p-3">
-            <p className="text-xs text-slate-500">
-              适用于尚未执行 Excel 导入、但需要先占位关联的场景。未列出的供应商请先在「站点设置」中维护。
-            </p>
             <select
               value={manual.supplier_id}
               onChange={e => setManual(m => ({ ...m, supplier_id: e.target.value }))}
@@ -293,7 +271,7 @@ export function SupplierCodeBindSection({ productId, embedded = false }: Props) 
               value={manual.supplier_code}
               onChange={e => setManual(m => ({ ...m, supplier_code: e.target.value }))}
               placeholder="供应商产品编码"
-              className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-md text-sm font-mono"
+              className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-md text-sm font-sku"
             />
             <input
               type="number"
@@ -307,13 +285,10 @@ export function SupplierCodeBindSection({ productId, embedded = false }: Props) 
               type="button"
               disabled={addingManual || availableForManual.length === 0}
               onClick={() => void handleManualAdd()}
-              className="px-4 py-2 text-sm bg-violet-600 text-white rounded-md hover:bg-violet-700 disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
             >
               {addingManual ? '提交中...' : '添加关联'}
             </button>
-            {availableForManual.length === 0 && (
-              <p className="text-xs text-amber-700">所有已有供应商均已关联；更换编码请先移除一条。</p>
-            )}
           </div>
         )}
       </div>

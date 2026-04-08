@@ -51,9 +51,9 @@ export function OrderDetailPage() {
   const billing = typeof order.billing_address === 'string' ? JSON.parse(order.billing_address || '{}') : (order.billing_address || {})
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div>
-        <Link to="/orders" className="text-sm text-violet-600 hover:text-violet-800">&larr; Back to Orders</Link>
+        <Link to="/orders" className="text-sm text-primary hover:text-primary-hover">&larr; Back to Orders</Link>
         <div className="flex items-center gap-3 mt-1">
           <h2 className="text-lg font-semibold text-slate-900">Order #{order.order_number}</h2>
           <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -72,7 +72,7 @@ export function OrderDetailPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white border border-slate-200 rounded-lg p-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-medium text-slate-900 mb-3">Items</h3>
           {lineItems.length === 0 ? (
             <p className="text-sm text-slate-400">No items</p>
@@ -96,7 +96,7 @@ export function OrderDetailPage() {
                         )}
                         <div>
                           <p>{item.name}</p>
-                          {item.sku && <p className="text-slate-400 font-mono text-xs">SKU: {item.sku}</p>}
+                          {item.sku && <p className="text-slate-400 font-sku text-xs">SKU: {item.sku}</p>}
                         </div>
                       </div>
                     </td>
@@ -117,7 +117,7 @@ export function OrderDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-lg p-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-medium text-slate-900 mb-3">Customer</h3>
             <dl className="space-y-2 text-sm">
               <div className="flex"><dt className="w-24 text-slate-500">Name</dt><dd className="text-slate-900">{order.customer_name || '-'}</dd></div>
@@ -127,7 +127,7 @@ export function OrderDetailPage() {
             </dl>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-lg p-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-medium text-slate-900 mb-3">Billing</h3>
             <div className="text-sm text-slate-700 space-y-1">
               {billing.first_name && <p>{billing.first_name} {billing.last_name}</p>}
@@ -141,7 +141,7 @@ export function OrderDetailPage() {
           </div>
 
           {(shipping.address_1 || shipping.city) && (
-            <div className="bg-white border border-slate-200 rounded-lg p-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="font-medium text-slate-900 mb-3">Shipping</h3>
               <div className="text-sm text-slate-700 space-y-1">
                 {shipping.first_name && <p>{shipping.first_name} {shipping.last_name}</p>}

@@ -88,26 +88,26 @@ export function ProductDetailPage() {
     setMappings(maps)
   }
 
-  if (loading) return <div className="p-6 text-slate-500">加载中...</div>
-  if (!product) return <div className="p-6 text-slate-500">产品不存在</div>
+  if (loading) return <div className="text-slate-500">加载中...</div>
+  if (!product) return <div className="text-slate-500">产品不存在</div>
 
   const images = typeof product.images === 'string' ? JSON.parse(product.images) : (product.images || [])
   const mappedSupplierIds = mappings.map(m => m.supplier_id)
   const availableSuppliers = suppliers.filter(s => !mappedSupplierIds.includes(s.id))
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link to="/products" className="text-sm text-violet-600 hover:text-violet-800">&larr; 返回列表</Link>
+          <Link to="/products" className="text-sm text-primary hover:text-primary-hover">&larr; 返回列表</Link>
           <h2 className="text-lg font-semibold text-slate-900 mt-1">{product.name}</h2>
-          <p className="text-sm text-slate-500 font-mono">{product.sku}</p>
+          <p className="text-sm text-slate-500 font-sku">{product.sku}</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="px-4 py-2 bg-violet-600 text-white text-sm rounded-md hover:bg-violet-700 disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             {syncing ? '同步中...' : '同步到所有站点'}
           </button>
@@ -128,7 +128,7 @@ export function ProductDetailPage() {
 
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-medium text-slate-900">基本信息</h3>
             <dl className="space-y-2 text-sm">
               <div className="flex"><dt className="w-28 text-slate-500">Categories</dt><dd className="text-slate-900">{product.category || '-'}</dd></div>
@@ -139,7 +139,7 @@ export function ProductDetailPage() {
                 const tags = typeof product.tags === 'string' ? JSON.parse(product.tags || '[]') : (product.tags || [])
                 return tags.length > 0 ? (
                   <div className="flex"><dt className="w-28 text-slate-500">Tags</dt><dd className="flex flex-wrap gap-1">{tags.map((t: string) => (
-                    <span key={t} className="px-2 py-0.5 bg-violet-50 text-violet-600 text-xs rounded-full">{t}</span>
+                    <span key={t} className="rounded-full bg-primary-muted px-2 py-0.5 text-xs text-primary">{t}</span>
                   ))}</dd></div>
                 ) : null
               })()}
@@ -164,11 +164,11 @@ export function ProductDetailPage() {
             )}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-lg p-5">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium text-slate-900">供应商</h3>
               {availableSuppliers.length > 0 && !showAddMapping && (
-                <button onClick={() => setShowAddMapping(true)} className="text-sm text-violet-600 hover:text-violet-800">
+                <button onClick={() => setShowAddMapping(true)} className="text-sm text-primary hover:text-primary-hover">
                   + 关联供应商
                 </button>
               )}
@@ -215,7 +215,7 @@ export function ProductDetailPage() {
                   className="w-full px-3 py-1.5 border border-slate-300 rounded text-sm"
                 />
                 <div className="flex gap-2">
-                  <button onClick={handleAddMapping} className="px-3 py-1.5 bg-violet-600 text-white text-sm rounded hover:bg-violet-700">确定</button>
+                  <button onClick={handleAddMapping} className="rounded bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover">确定</button>
                   <button onClick={() => setShowAddMapping(false)} className="px-3 py-1.5 text-sm border border-slate-200 rounded hover:bg-slate-50">取消</button>
                 </div>
               </div>
@@ -225,7 +225,7 @@ export function ProductDetailPage() {
 
         <div className="space-y-6">
           {images.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-lg p-5">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5">
               <h3 className="font-medium text-slate-900 mb-3">图片</h3>
               <div className="grid grid-cols-3 gap-2">
                 {images.map((url: string, i: number) => (
@@ -235,7 +235,7 @@ export function ProductDetailPage() {
             </div>
           )}
 
-          <div className="bg-white border border-slate-200 rounded-lg p-5">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5">
             <h3 className="font-medium text-slate-900 mb-3">同步状态</h3>
             {(!product.sync || product.sync.length === 0) ? (
               <p className="text-sm text-slate-400">尚未同步到任何站点</p>

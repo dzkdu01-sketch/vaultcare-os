@@ -55,7 +55,7 @@ export function ProductSyncToSitesModal({
                   <label className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-1.5 hover:bg-white">
                     <input
                       type="checkbox"
-                      className="mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                      className="mt-0.5 rounded border-slate-300 text-primary focus:ring-primary"
                       checked={checked}
                       onChange={() => onToggle(site.id)}
                     />
@@ -83,7 +83,7 @@ export function ProductSyncToSitesModal({
           </button>
           <button
             type="button"
-            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             onClick={onConfirm}
             disabled={loading || active.length === 0 || selectedIds.length === 0}
           >

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "tsc"
+    "build": "node ./node_modules/typescript/lib/tsc.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.97",

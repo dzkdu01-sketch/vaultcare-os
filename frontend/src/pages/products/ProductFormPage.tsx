@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Copy } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { HtmlPreviewPane } from '../../components/shared/HtmlPreviewPane'
 import { applyCatalogTagToggle, dedupeGenderCatalogTags, tagKeyEquals } from '../../lib/catalogTags'
 import {
   DEFAULT_PRODUCT_CATEGORIES,
@@ -15,10 +15,10 @@ import { ProductSyncToSitesModal } from './ProductSyncToSitesModal'
 import { SupplierCodeBindSection } from './SupplierCodeBindSection'
 import type { ProductInput } from '../../services/types'
 
-/** 产品图默认前缀（ImageKit pic 路径），与资源命名 `{SKU}-n.webp` 一致 */
-const PRODUCT_IMAGE_BASE = 'https://ik.imagekit.io/vaultcare/pic/'
-/** 长描述主视频：ImageKit video 路径，与 `{SKU}-s1.mp4`、`{SKU}-s2.mp4` … 一致 */
-const PRODUCT_VIDEO_BASE = 'https://ik.imagekit.io/vaultcare/video/'
+/** 产品图默认前缀，与资源命名 `{SKU}-n.webp` 一致 */
+const PRODUCT_IMAGE_BASE = 'http://vault-me.site/pic/'
+/** 长描述主视频路径，与 `{SKU}-s1.mp4`、`{SKU}-s2.mp4` … 一致 */
+const PRODUCT_VIDEO_BASE = 'http://vault-me.site/vid/'
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -67,7 +67,7 @@ function ProductImagePreviewSlot({ url }: { url: string | undefined }) {
     <button
       type="button"
       onClick={() => window.open(trimmed, '_blank', 'noopener,noreferrer')}
-      className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-left focus:outline-none focus:ring-2 focus:ring-violet-400"
+      className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 text-left focus:outline-none focus:ring-2 focus:ring-primary-ring"
       title="在新标签页打开原图"
     >
       <img
@@ -90,35 +90,29 @@ const FORM_ID = 'product-form'
 const SECTION_NAV = [
   { id: 'section-basic', label: '基础信息' },
   { id: 'section-supplier', label: '供应商' },
-  { id: 'section-short', label: '短描述' },
-  { id: 'section-desc', label: '长描述' },
+  { id: 'section-desc', label: '描述' },
   { id: 'section-meta', label: '图片' },
 ] as const
 
 function FormSection({
   id,
   title,
-  description,
   headerExtra,
   children,
 }: {
   id: string
   title: string
-  description?: string
   headerExtra?: ReactNode
   children: ReactNode
 }) {
   return (
     <section
       id={id}
-      className="scroll-mt-28 rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/5 md:p-6"
+      className="scroll-mt-28 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.06)] md:p-7"
     >
-      <header className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <header className="mb-6 flex flex-col gap-3 border-b border-slate-100/90 pb-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
-          {description ? (
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{description}</p>
-          ) : null}
+          <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">{title}</h2>
         </div>
         {headerExtra ? <div className="shrink-0">{headerExtra}</div> : null}
       </header>
@@ -142,7 +136,7 @@ function SectionNav() {
             <li key={item.id}>
               <a
                 href={`#${item.id}`}
-                className="block rounded-md px-2 py-1.5 text-sm text-slate-600 transition-colors hover:bg-violet-50 hover:text-violet-800"
+                className="block rounded-md px-2 py-1.5 text-sm text-slate-600 transition-colors hover:bg-primary-muted hover:text-primary-hover"
               >
                 {item.label}
               </a>
@@ -175,10 +169,20 @@ export function ProductFormPage() {
   const [syncModalOpen, setSyncModalOpen] = useState(false)
   const [selectedSyncSites, setSelectedSyncSites] = useState<string[]>([])
   const [syncingToSites, setSyncingToSites] = useState(false)
+  const [skuCopied, setSkuCopied] = useState(false)
   const submitIntent = useRef<'stay' | 'list'>('stay')
   const formRef = useRef(form)
   formRef.current = form
   const { setSubtitle, setHeaderActions } = usePageHeader()
+
+  const copySkuToClipboard = useCallback(() => {
+    const t = sku.trim()
+    if (!t) return
+    void navigator.clipboard.writeText(t).then(() => {
+      setSkuCopied(true)
+      window.setTimeout(() => setSkuCopied(false), 2000)
+    })
+  }, [sku])
 
   useEffect(() => {
     if (!isEdit) {
@@ -256,7 +260,7 @@ export function ProductFormPage() {
     const data = formRef.current
     try {
       if (isEdit) {
-        await productApi.update(id!, data)
+        await productApi.update(id!, { ...data, sku: sku.trim() })
         const intent = submitIntent.current
         submitIntent.current = 'stay'
         if (intent === 'list') {
@@ -275,7 +279,7 @@ export function ProductFormPage() {
     } finally {
       setSaving(false)
     }
-  }, [isEdit, id, navigate])
+  }, [isEdit, id, navigate, sku])
 
   const handleSaveAndReturnList = useCallback(async () => {
     if (!isEdit || !id) return
@@ -391,7 +395,7 @@ export function ProductFormPage() {
         <button
           type="button"
           onClick={() => navigate('/products')}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm hover:bg-slate-50"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm hover:bg-slate-50"
         >
           取消
         </button>
@@ -400,7 +404,7 @@ export function ProductFormPage() {
             type="button"
             onClick={() => void handleSaveAndReturnList()}
             disabled={saving}
-            className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-violet-700 shadow-sm hover:bg-violet-50 disabled:opacity-50"
+            className="rounded-lg border border-primary-border bg-white px-3 py-2 text-sm text-primary shadow-sm hover:bg-primary-muted disabled:opacity-50"
           >
             {saving ? '保存中...' : '保存并返回列表'}
           </button>
@@ -410,7 +414,7 @@ export function ProductFormPage() {
           form={FORM_ID}
           disabled={saving}
           onClick={() => { submitIntent.current = 'stay' }}
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-violet-700 disabled:opacity-50"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover disabled:opacity-50"
         >
           {saving ? '保存中...' : isEdit ? '保存' : '创建'}
         </button>
@@ -429,11 +433,11 @@ export function ProductFormPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col w-full max-w-none">
-      <div className="flex min-h-0 flex-1 flex-col gap-8 xl:flex-row xl:items-start xl:gap-10">
+      <div className="flex min-h-0 flex-1 flex-col gap-8 xl:flex-row xl:items-start xl:gap-12">
         <form
           id={FORM_ID}
           onSubmit={handleSubmit}
-          className="flex min-w-0 flex-1 flex-col gap-6 pb-10"
+          className="mx-auto flex min-w-0 w-full max-w-[56rem] flex-1 flex-col gap-8 pb-12 xl:mx-0 xl:max-w-none xl:flex-[1_1_0%]"
         >
           {saveSuccess && (
             <div
@@ -446,13 +450,12 @@ export function ProductFormPage() {
           <FormSection
             id="section-basic"
             title="基础信息"
-            description="名称与状态、分类与标签、价格；保存前请确认必填项。"
             headerExtra={
               isEdit && id ? (
                 <button
                   type="button"
                   onClick={openSyncModal}
-                  className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 shadow-sm hover:bg-violet-100"
+                  className="rounded-lg border border-primary-border bg-primary-muted px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-primary-muted"
                 >
                   同步至网站
                 </button>
@@ -463,12 +466,29 @@ export function ProductFormPage() {
               {isEdit && (
                 <div className="xl:col-span-2">
                   <label className="mb-1 block text-sm font-medium text-slate-700">SKU</label>
-                  <input
-                    value={sku}
-                    disabled
-                    className="w-full max-w-xs rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-500"
-                  />
-                  <p className="mt-1 text-xs text-slate-400">系统自动生成，不可修改</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={sku}
+                      onChange={e => setSku(e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="min-w-0 flex-1 max-w-md rounded-xl border border-slate-300 bg-white px-3 py-2 font-sku text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void copySkuToClipboard()}
+                      disabled={!sku.trim()}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-40"
+                      title="复制完整货号，避免 0/O/8 看错"
+                    >
+                      <Copy className="h-4 w-4 opacity-80" aria-hidden />
+                      {skuCopied ? '已复制' : '复制'}
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    货号使用等宽字体显示，数字 0 与字母 O、数字 8 更易区分；需要核对时请用「复制」粘贴到别处比对。修改 SKU
+                    后请自行核对长描述与图片中的资源路径是否仍与货号一致；已同步至网站的商品请在改码后重新同步。
+                  </p>
                 </div>
               )}
 
@@ -478,7 +498,7 @@ export function ProductFormPage() {
                   <input
                     value={form.name}
                     onChange={e => set('name', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
                 </div>
@@ -490,9 +510,9 @@ export function ProductFormPage() {
                       role="radio"
                       aria-checked={(form.status ?? 1) === 1}
                       onClick={() => set('status', 1)}
-                      className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 ${
+                      className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 ${
                         (form.status ?? 1) === 1
-                          ? 'border-violet-500 bg-violet-50 text-violet-900'
+                          ? 'border-primary bg-primary-muted text-slate-900'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                       }`}
                     >
@@ -503,9 +523,9 @@ export function ProductFormPage() {
                       role="radio"
                       aria-checked={(form.status ?? 1) === 0}
                       onClick={() => set('status', 0)}
-                      className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 ${
+                      className={`rounded-xl border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 ${
                         (form.status ?? 1) === 0
-                          ? 'border-violet-500 bg-violet-50 text-violet-900'
+                          ? 'border-primary bg-primary-muted text-slate-900'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                       }`}
                     >
@@ -521,7 +541,7 @@ export function ProductFormPage() {
                   <select
                     value={form.category || ''}
                     onChange={e => set('category', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <option value="">选择分类</option>
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -539,7 +559,7 @@ export function ProductFormPage() {
                           onClick={() => toggleTag(tag)}
                           className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
                             selected
-                              ? 'border-violet-300 bg-violet-100 text-violet-800'
+                              ? 'border-primary-border bg-primary-muted text-slate-800'
                               : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                           }`}
                         >
@@ -558,7 +578,7 @@ export function ProductFormPage() {
                   step="0.01"
                   value={form.sale_price || ''}
                   onChange={e => set('sale_price', parseFloat(e.target.value) || 0)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div>
@@ -568,131 +588,105 @@ export function ProductFormPage() {
                   step="0.01"
                   value={form.regular_price || ''}
                   onChange={e => set('regular_price', parseFloat(e.target.value) || 0)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
           </FormSection>
 
-          <FormSection
-            id="section-supplier"
-            title="供应商编码"
-            description="从已导入货源中搜索并绑定；每个供应商最多一条关联。新建商品需先保存后再绑定。"
-          >
+          <FormSection id="section-supplier" title="供应商编码">
             {isEdit && id ? (
               <SupplierCodeBindSection productId={id} embedded />
             ) : (
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/90 p-4 text-sm text-slate-600">
-                保存新建商品后，将跳转到编辑页，即可在此绑定
-                <strong className="font-medium text-slate-800">供应商编码</strong>
-                （从已导入货源中搜索）。
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-500">
+                保存商品后可绑定供应商编码
               </div>
             )}
           </FormSection>
 
           <FormSection
-            id="section-short"
-            title="短描述"
-            description="左侧编辑 HTML 源码，右侧为消毒后预览（仅参考；保存内容以左侧为准）。图片/视频仅展示白名单域名。"
-          >
-            <div className="grid min-h-0 grid-cols-1 gap-4 xl:min-h-[360px] xl:grid-cols-2 xl:gap-6">
-              <div className="flex min-h-[200px] flex-col xl:min-h-0">
-                <label className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  源码
-                </label>
-                <textarea
-                  value={form.short_description || ''}
-                  onChange={e => set('short_description', e.target.value)}
-                  className="min-h-[200px] w-full flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500 xl:min-h-0"
-                />
-              </div>
-              <HtmlPreviewPane
-                html={form.short_description || ''}
-                label="预览（消毒后）"
-                className="min-h-[200px]"
-              />
-            </div>
-          </FormSection>
-
-          <FormSection
             id="section-desc"
-            title="长描述"
-            description="左侧直接输入介绍文字（无需写 HTML）；每行一条视频或图片链接会自动在右侧预览。详情商品图请在下方「图片」四槽位维护。"
+            title="商品描述"
             headerExtra={
               <button
                 type="button"
                 disabled={!sku.trim()}
                 title={sku.trim() ? '按当前 SKU 插入 ImageKit 视频链接（s1、s2… 递增）' : '请先保存商品以生成 SKU'}
                 onClick={() => insertNextProductVideoLine()}
-                className="rounded-lg border border-violet-200 bg-violet-50/80 px-2.5 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg border border-primary-border bg-primary-muted/80 px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-primary-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
                 插入视频
               </button>
             }
           >
-            <div className="grid min-h-0 grid-cols-1 gap-4 xl:min-h-[440px] xl:grid-cols-2 xl:gap-6">
-              <div className="flex min-h-[280px] flex-col xl:min-h-0">
-                <label className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  正文
+            <div className="space-y-8">
+              <div>
+                <label
+                  htmlFor="field-short-description"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  短描述
                 </label>
                 <textarea
+                  id="field-short-description"
+                  value={form.short_description || ''}
+                  onChange={e => set('short_description', e.target.value)}
+                  rows={6}
+                  spellCheck={false}
+                  placeholder="列表摘要等，可含 HTML"
+                  className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="border-t border-slate-100 pt-8">
+                <label
+                  htmlFor="field-long-description"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  长描述
+                </label>
+                <textarea
+                  id="field-long-description"
                   ref={descriptionTextareaRef}
                   value={form.description || ''}
                   onChange={e => set('description', e.target.value)}
-                  placeholder="在此输入文字介绍。需要主视频时点击「插入视频」，将按 SKU 自动填入 ImageKit 链接（每点多一次依次为 s1、s2…）。"
-                  className="min-h-[280px] w-full flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 xl:min-h-0"
+                  rows={14}
+                  spellCheck={false}
+                  placeholder="正文与视频链接（每行一条链接可便于管理）"
+                  className="min-h-[280px] w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
-              <HtmlPreviewPane
-                html={form.description || ''}
-                label="预览（消毒后）"
-                className="min-h-[280px]"
-              />
             </div>
           </FormSection>
 
-          <FormSection
-            id="section-meta"
-            title="图片"
-            description="固定 4 个槽位对应的链接；首行常作为列表缩略图。编辑且当前无图片时会自动填入 ImageKit 约定 URL。"
-          >
+          <FormSection id="section-meta" title="图片">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">图片 URL</label>
-              <p className="mb-2 text-xs text-slate-500">
-                每行一个链接，共 4 行；自上而下<strong className="font-medium text-slate-700">第一行</strong>
-                通常用作后台列表缩略图。自动生成格式为{' '}
-                <code className="rounded bg-slate-100 px-1 text-[11px]">{`{SKU}-1.webp`}</code>
-                …<code className="rounded bg-slate-100 px-1 text-[11px]">{`{SKU}-4.webp`}</code>
-                （可从 ImageKit 复制其它路径或带参数的完整 URL 覆盖某行）。
-              </p>
+              <label className="mb-2 block text-sm font-medium text-slate-700">图片 URL</label>
               {isEdit && sku ? (
-                <div className="mb-3 flex flex-wrap items-center gap-2">
+                <div className="mb-4 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => set('images', buildDefaultProductImageUrls(sku))}
-                    className="rounded border border-violet-200 px-3 py-1 text-xs text-violet-600 hover:bg-violet-50"
+                    className="rounded-lg border border-primary-border bg-white px-3 py-1.5 text-xs font-medium text-primary shadow-sm hover:bg-primary-muted"
                   >
                     重新生成 4 条链接
                   </button>
-                  <span className="text-xs text-slate-400">按当前 SKU 覆盖为约定链接</span>
                 </div>
-              ) : (
-                <p className="mb-2 text-xs text-slate-400">保存后将进入编辑页，若无图片将自动填入 4 条 ImageKit 链接</p>
-              )}
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-stretch xl:gap-6">
-                <div className="min-w-0 flex-1 flex flex-col">
+              ) : null}
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch xl:gap-8">
+                <div className="flex min-w-0 flex-1 flex-col">
                   <textarea
                     value={(form.images || []).join('\n')}
                     onChange={e => set('images', e.target.value.split('\n').filter(Boolean))}
                     rows={8}
                     spellCheck={false}
                     placeholder="https://ik.imagekit.io/vaultcare/pic/..."
-                    className="min-h-[200px] w-full flex-1 rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className="min-h-[200px] w-full flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div className="shrink-0 xl:w-[min(100%,280px)]">
-                  <p className="mb-2 text-xs font-medium text-slate-500">缩略图预览（与左侧行前 4 条对应）</p>
-                  <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">预览</p>
+                  <div className="space-y-3 rounded-xl border border-slate-200/90 bg-slate-50/90 p-4">
                     {IMAGE_SLOT_LABELS.map((label, i) => {
                       const u = (form.images || [])[i]
                       return (
@@ -703,9 +697,6 @@ export function ProductFormPage() {
                       )
                     })}
                   </div>
-                  {(form.images || []).length > FIXED_IMAGE_SLOTS ? (
-                    <p className="mt-2 text-[11px] text-slate-400">当前多于 4 条链接时，仅预览前 4 张；列表缩略图仍取第一行。</p>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -717,14 +708,13 @@ export function ProductFormPage() {
             </p>
           )}
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-inner">
-            <p className="mb-3 text-xs text-slate-500">填完长表单后，可在此再次保存，无需回到页面顶部。</p>
+          <div className="rounded-2xl border border-slate-200/90 bg-slate-50/90 p-5 shadow-inner">
             <div className="flex flex-wrap gap-2">
               <button
                 type="submit"
                 disabled={saving}
                 onClick={() => { submitIntent.current = 'stay' }}
-                className="rounded-lg bg-violet-600 px-5 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 {saving ? '保存中...' : isEdit ? '保存' : '创建'}
               </button>
@@ -733,7 +723,7 @@ export function ProductFormPage() {
                   type="button"
                   onClick={() => void handleSaveAndReturnList()}
                   disabled={saving}
-                  className="rounded-lg border border-violet-200 bg-white px-4 py-2 text-sm text-violet-700 hover:bg-violet-50 disabled:opacity-50"
+                  className="rounded-lg border border-primary-border bg-white px-4 py-2 text-sm text-primary hover:bg-primary-muted disabled:opacity-50"
                 >
                   保存并返回列表
                 </button>

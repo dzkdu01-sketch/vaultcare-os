@@ -33,12 +33,12 @@ if [[ ! -f .env ]]; then
   printf '%s\n' 'VITE_USE_MOCK=false' 'VITE_API_BASE_URL=/api/v1' > .env
 fi
 echo "==> 构建前端"
-npm ci
+NODE_ENV=development npm ci
 npm run build
 
 echo "==> 构建后端"
 cd "$ROOT/backend"
-npm ci
+NODE_ENV=development npm ci
 npm run build
 
 DB_FILE="$ROOT/backend/data/vaultcare.db"

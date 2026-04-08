@@ -190,12 +190,12 @@ export function SupplierPage() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-slate-900">供应商</h2>
-          <button onClick={openAddSupplier} className="px-3 py-1.5 text-sm bg-violet-600 text-white rounded-md hover:bg-violet-700">
+          <button onClick={openAddSupplier} className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover">
             添加供应商
           </button>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -216,7 +216,7 @@ export function SupplierPage() {
                   <td className="px-4 py-2 text-slate-600">{s.contact || '-'}</td>
                   <td className="px-4 py-2 text-slate-400 text-xs">{s.note || '-'}</td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    <button onClick={() => openEditSupplier(s)} className="text-violet-600 hover:text-violet-800 mr-2">编辑</button>
+                    <button onClick={() => openEditSupplier(s)} className="mr-2 text-primary hover:text-primary-hover">编辑</button>
                     <button onClick={() => deleteSupplier(s.id)} className="text-red-500 hover:text-red-700">删除</button>
                   </td>
                 </tr>
@@ -226,13 +226,13 @@ export function SupplierPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-4">
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-semibold text-slate-900">供应商商品映射工作台</h2>
             <p className="text-sm text-slate-500 mt-1">导入 Excel 后生成供应商商品记录，并在此批量绑定或解绑内部商品。</p>
           </div>
-          <label className="px-3 py-1.5 text-sm border border-violet-200 text-violet-600 rounded-md hover:bg-violet-50 cursor-pointer">
+          <label className="cursor-pointer rounded-md border border-primary-border px-3 py-1.5 text-sm text-primary hover:bg-primary-muted">
             {uploading ? '导入中...' : '导入供应商商品'}
             <input
               type="file"
@@ -293,11 +293,11 @@ export function SupplierPage() {
           <button onClick={loadData} className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50">刷新</button>
         </div>
 
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="px-4 py-3 w-10">
+                <th className="w-10 px-4 py-3">
                   <input type="checkbox" checked={allSelected} onChange={() => toggleSelectAll()} className="rounded border-slate-300" />
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-slate-600">供应商</th>
@@ -331,10 +331,10 @@ export function SupplierPage() {
                         onChange={e => setEditValue(e.target.value)}
                         onBlur={saveEdit}
                         onKeyDown={handleKeyDown}
-                        className="w-24 px-2 py-1 border border-violet-300 rounded text-sm text-right"
+                        className="w-24 rounded border border-primary-border px-2 py-1 text-right text-sm"
                       />
                     ) : (
-                      <span onClick={() => startEdit(row, 'cost_price_aed')} className="cursor-pointer hover:text-violet-600">
+                      <span onClick={() => startEdit(row, 'cost_price_aed')} className="cursor-pointer hover:text-primary">
                         {row.cost_price_aed != null ? row.cost_price_aed : '-'}
                       </span>
                     )}
@@ -343,7 +343,7 @@ export function SupplierPage() {
                     {row.mapped_product_sku ? `${row.mapped_product_sku} · ${row.mapped_product_name}` : '未绑定'}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    <button onClick={() => handleSingleBind(row)} className="text-violet-600 hover:text-violet-800 mr-2">绑定</button>
+                    <button onClick={() => handleSingleBind(row)} className="mr-2 text-primary hover:text-primary-hover">绑定</button>
                     {row.mapped_product_id && (
                       <button onClick={() => handleSingleUnbind(row)} className="text-red-500 hover:text-red-700">解绑</button>
                     )}
@@ -358,7 +358,7 @@ export function SupplierPage() {
       {selectedImportedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border border-slate-200 rounded-lg shadow-lg px-6 py-3 flex items-center gap-4 z-50">
           <span className="text-sm text-slate-600">已选 {selectedImportedIds.size} 项</span>
-          <button onClick={() => setShowBindModal(true)} disabled={batchUpdating} className="px-4 py-1.5 text-sm bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50">
+          <button onClick={() => setShowBindModal(true)} disabled={batchUpdating} className="rounded bg-primary px-4 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50">
             批量绑定
           </button>
           <button onClick={handleBatchUnbind} disabled={batchUpdating} className="px-4 py-1.5 text-sm bg-slate-500 text-white rounded hover:bg-slate-600 disabled:opacity-50">
@@ -387,7 +387,7 @@ export function SupplierPage() {
             </select>
             <div className="flex gap-2 justify-end pt-1">
               <button onClick={() => setShowBindModal(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50">取消</button>
-              <button onClick={handleBatchBind} disabled={!selectedProductId || batchUpdating} className="px-4 py-2 text-sm bg-violet-600 text-white rounded-md hover:bg-violet-700 disabled:opacity-50">确认绑定</button>
+              <button onClick={handleBatchBind} disabled={!selectedProductId || batchUpdating} className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50">确认绑定</button>
             </div>
           </div>
         </div>
@@ -423,7 +423,7 @@ export function SupplierPage() {
             />
             <div className="flex gap-2 justify-end pt-1">
               <button onClick={() => setShowSupplierForm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50">取消</button>
-              <button onClick={saveSupplier} className="px-4 py-2 text-sm bg-violet-600 text-white rounded-md hover:bg-violet-700">保存</button>
+              <button onClick={saveSupplier} className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover">保存</button>
             </div>
           </div>
         </div>

@@ -39,14 +39,21 @@ function now() { return new Date().toISOString() }
 function respond(res: Response, data: unknown, code = 200) { res.status(code).json({ code, message: 'ok', data }) }
 function respondError(res: Response, message: string, code = 400) { res.status(code).json({ code, message, data: null }) }
 
+/** 新建商品自动 SKU 前缀（与历史 VC 系列并存，仅 DK 序列递增） */
+const AUTO_SKU_PREFIX = 'DK'
+
 function generateSku(): string {
   const db = getDb()
-  const row = db.get("SELECT sku FROM products WHERE sku LIKE 'VC%' ORDER BY CAST(SUBSTR(sku, 3) AS INTEGER) DESC LIMIT 1") as any
+  const like = `${AUTO_SKU_PREFIX}%`
+  const row = db.get(
+    `SELECT sku FROM products WHERE sku LIKE ? ORDER BY CAST(SUBSTR(sku, 3) AS INTEGER) DESC LIMIT 1`,
+    [like],
+  ) as { sku?: string } | undefined
   if (row?.sku) {
-    const num = parseInt(row.sku.replace('VC', '')) || 0
-    return `VC${String(num + 1).padStart(3, '0')}`
+    const num = parseInt(row.sku.replace(AUTO_SKU_PREFIX, ''), 10) || 0
+    return `${AUTO_SKU_PREFIX}${String(num + 1).padStart(3, '0')}`
   }
-  return 'VC001'
+  return `${AUTO_SKU_PREFIX}001`
 }
 
 // GET /catalog 与 /catalog.png?audience=him|her — 客户图册长图（宽 1500px，PNG）
@@ -116,9 +123,11 @@ productRouter.get('/items', (req: Request, res: Response) => {
   const params: unknown[] = []
 
   if (keyword) {
-    conditions.push('(p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ?)')
+    conditions.push(
+      '(p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ? OR EXISTS (SELECT 1 FROM product_supplier ps_kw WHERE ps_kw.product_id = p.id AND ps_kw.supplier_code LIKE ?))',
+    )
     const kw = `%${keyword}%`
-    params.push(kw, kw, kw)
+    params.push(kw, kw, kw, kw)
   }
 
   if (category) {
@@ -296,14 +305,28 @@ productRouter.put('/items/:id', (req: Request, res: Response) => {
     finalCatalogIn = 0
   }
 
-  const updatable = ['name', 'short_description', 'description', 'sale_price', 'regular_price', 'category', 'tags', 'images', 'status']
+  if (req.body.sku !== undefined) {
+    const nextSku = String(req.body.sku).trim()
+    if (!nextSku) return respondError(res, 'SKU 不能为空', 400)
+    const currentSku = String(product.sku ?? '')
+    if (nextSku !== currentSku) {
+      const clash = db.get('SELECT id FROM products WHERE sku = ? AND id != ?', [nextSku, req.params.id]) as
+        | { id: string }
+        | undefined
+      if (clash) return respondError(res, 'SKU 已被其他商品使用', 409)
+    }
+  }
+
+  const updatable = ['name', 'short_description', 'description', 'sale_price', 'regular_price', 'category', 'tags', 'images', 'status', 'sku']
   const sets: string[] = []
   const params: unknown[] = []
 
   for (const field of updatable) {
     if (req.body[field] !== undefined) {
       sets.push(`${field} = ?`)
-      const val = field === 'tags' && tagsNorm !== undefined ? tagsNorm : req.body[field]
+      let val: unknown =
+        field === 'tags' && tagsNorm !== undefined ? tagsNorm : req.body[field]
+      if (field === 'sku') val = String(val).trim()
       params.push((field === 'images' || field === 'tags') ? JSON.stringify(val) : val)
     }
   }

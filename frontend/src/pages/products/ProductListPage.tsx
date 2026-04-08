@@ -357,17 +357,18 @@ export function ProductListPage() {
     }
   }
 
-  const cellClass = 'cursor-pointer hover:bg-violet-50/50 rounded px-1 -mx-1 transition-colors'
+  const cellClass = 'cursor-pointer hover:bg-primary-muted/50 rounded px-1 -mx-1 transition-colors'
   const colSpanCount = 11
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <form onSubmit={handleSearch} className="flex gap-2 items-center">
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <form onSubmit={handleSearch} className="flex flex-wrap gap-2 items-center">
           <input
             value={keyword}
             onChange={e => setKeyword(e.target.value)}
-            placeholder="搜索 SKU / 名称 / 分类"
+            placeholder="搜索 SKU / 名称 / 分类 / 供应商编码"
             className="px-3 py-2 border border-slate-300 rounded-md text-sm w-64"
           />
           <select
@@ -442,7 +443,7 @@ export function ProductListPage() {
               onClick={() => { setShowSyncMenu(!showSyncMenu); setShowImport(false) }}
               disabled={syncingAll || dbProductCount === 0}
               title={dbProductCount > 0 ? `将同步本地全部 ${dbProductCount} 件商品（与筛选无关）` : '本地无商品可同步'}
-              className="px-4 py-2 text-sm border border-violet-200 text-violet-600 rounded-md hover:bg-violet-50 disabled:opacity-50"
+              className="rounded-md border border-primary-border px-4 py-2 text-sm text-primary hover:bg-primary-muted disabled:opacity-50"
             >
               {syncingAll ? '同步中...' : '同步全部到站点'}
             </button>
@@ -466,7 +467,7 @@ export function ProductListPage() {
                   <button
                     onClick={handleSyncAll}
                     disabled={selectedSyncSites.length === 0}
-                    className="w-full px-3 py-1.5 bg-violet-600 text-white text-sm rounded hover:bg-violet-700 disabled:opacity-50"
+                    className="w-full rounded bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
                   >
                     确认同步全部商品 ({selectedSyncSites.length} 个站点)
                   </button>
@@ -475,18 +476,12 @@ export function ProductListPage() {
             )}
           </div>
           <button
-            type="button"
-            onClick={() => navigate('/products/catalog')}
-            className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50 text-slate-700"
-          >
-            客户图册
-          </button>
-          <button
             onClick={() => navigate('/products/new')}
-            className="px-4 py-2 bg-violet-600 text-white text-sm rounded-md hover:bg-violet-700"
+            className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover"
           >
             新建产品
           </button>
+        </div>
         </div>
       </div>
 
@@ -496,7 +491,7 @@ export function ProductListPage() {
         </div>
       ) : null}
 
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
@@ -508,16 +503,21 @@ export function ProductListPage() {
                   className="rounded border-slate-300"
                 />
               </th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600 w-14">图片</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600 w-20">SKU</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">名称</th>
-              <th className="text-right px-4 py-3 font-medium text-slate-600 w-24">售价</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600 w-44">分类</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600 w-20">状态</th>
-              <th className="text-center px-4 py-3 font-medium text-slate-600 w-20" title="需有 for him / for her 标签才可进图册">进图册</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600 w-20">同步</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600 w-32">供应商编码</th>
-              <th className="text-right px-4 py-3 font-medium text-slate-600 w-24">操作</th>
+              <th className="w-14 px-4 py-3 text-left text-xs font-semibold text-slate-600">图片</th>
+              <th className="w-20 px-4 py-3 text-left text-xs font-semibold text-slate-600">SKU</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">名称</th>
+              <th className="w-24 px-4 py-3 text-right text-xs font-semibold text-slate-600">售价</th>
+              <th className="w-44 px-4 py-3 text-left text-xs font-semibold text-slate-600">分类</th>
+              <th className="w-20 px-4 py-3 text-left text-xs font-semibold text-slate-600">状态</th>
+              <th
+                className="w-20 px-4 py-3 text-center text-xs font-semibold text-slate-600"
+                title="需有 for him / for her 标签才可进图册"
+              >
+                进图册
+              </th>
+              <th className="w-20 px-4 py-3 text-left text-xs font-semibold text-slate-600">同步</th>
+              <th className="w-32 px-4 py-3 text-left text-xs font-semibold text-slate-600">供应商编码</th>
+              <th className="w-24 px-4 py-3 text-right text-xs font-semibold text-slate-600">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -543,7 +543,7 @@ export function ProductListPage() {
                     {img ? <img src={img} alt="" className="w-8 h-8 object-cover rounded border border-slate-200" />
                       : <div className="w-8 h-8 bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-slate-300 text-[10px]">N/A</div>}
                   </td>
-                  <td className="px-4 py-2 font-mono text-slate-500 text-xs">{p.sku}</td>
+                  <td className="px-4 py-2 font-sku text-slate-500 text-xs">{p.sku}</td>
 
                   {/* 名称 - clickable to edit */}
                   <td className="px-4 py-2 max-w-[280px]">
@@ -554,7 +554,7 @@ export function ProductListPage() {
                         onChange={e => setEditValue(e.target.value)}
                         onBlur={() => void saveCell()}
                         onKeyDown={handleCellKeyDown}
-                        className="w-full px-2 py-1 border border-violet-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        className="w-full rounded border border-primary-border px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     ) : (
                       <span
@@ -576,7 +576,7 @@ export function ProductListPage() {
                         onChange={e => setEditValue(e.target.value)}
                         onBlur={() => void saveCell()}
                         onKeyDown={handleCellKeyDown}
-                        className="w-full px-2 py-1 border border-violet-300 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        className="w-full rounded border border-primary-border px-2 py-1 text-right text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     ) : (
                       <span onClick={e => startCellEdit(p, 'sale_price', e)} className={`${cellClass} text-slate-700`}>
@@ -593,7 +593,7 @@ export function ProductListPage() {
                         value={editValue}
                         onChange={e => { const v = e.target.value; setEditValue(v); saveCell(v) }}
                         onBlur={() => void saveCell()}
-                        className="w-full px-2 py-1 border border-violet-300 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        className="w-full rounded border border-primary-border bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                       >
                         <option value="">--</option>
                         {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -638,7 +638,7 @@ export function ProductListPage() {
 
                   {/* 操作 */}
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    <button onClick={e => { e.stopPropagation(); navigate(`/products/${p.id}/edit`) }} className="text-violet-600 hover:text-violet-800 mr-2">编辑</button>
+                    <button onClick={e => { e.stopPropagation(); navigate(`/products/${p.id}/edit`) }} className="mr-2 text-primary hover:text-primary-hover">编辑</button>
                     <button onClick={e => handleDelete(p.id, e)} className="text-red-500 hover:text-red-700">删除</button>
                   </td>
                 </tr>

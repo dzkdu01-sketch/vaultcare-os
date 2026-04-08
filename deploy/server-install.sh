@@ -52,12 +52,13 @@ cd "$ROOT/frontend"
 if [[ ! -f .env ]]; then
   printf '%s\n' 'VITE_USE_MOCK=false' 'VITE_API_BASE_URL=/api/v1' > .env
 fi
-npm ci
+# 若 NODE_ENV=production，npm ci 会跳过 devDependencies，导致 tsc/vite 缺失、构建失败
+NODE_ENV=development npm ci
 npm run build
 
 echo "==> 构建并启动后端（PM2）"
 cd "$ROOT/backend"
-npm ci
+NODE_ENV=development npm ci
 npm run build
 
 npm install -g pm2

@@ -18,7 +18,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
           id="username"
           name="username"
           type="text"
-          className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+          className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           placeholder="请输入账号"
         />
       </div>
@@ -28,13 +28,13 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
           id="password"
           name="password"
           type="password"
-          className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+          className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           placeholder="请输入密码"
         />
       </div>
       <button
         type="submit"
-        className="w-full py-2 bg-violet-600 text-white text-sm font-medium rounded-md hover:bg-violet-700 transition-colors cursor-pointer"
+        className="w-full cursor-pointer rounded-md bg-primary py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
       >
         登录
       </button>

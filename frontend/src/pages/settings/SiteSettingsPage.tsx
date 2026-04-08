@@ -90,10 +90,10 @@ export function SiteSettingsPage() {
     }
   }
 
-  if (loading) return <div className="p-6 text-slate-500">加载中...</div>
+  if (loading) return <div className="text-slate-500">加载中...</div>
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="space-y-8">
       {/* WooCommerce 站点 */}
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -103,7 +103,7 @@ export function SiteSettingsPage() {
           </div>
           <button
             onClick={() => { setEditingSite(null); setShowSiteForm(true) }}
-            className="px-4 py-2 bg-violet-600 text-white text-sm rounded-md hover:bg-violet-700"
+            className="px-4 py-2 rounded-md bg-primary text-sm text-white hover:bg-primary-hover"
           >
             添加站点
           </button>
@@ -116,7 +116,7 @@ export function SiteSettingsPage() {
         ) : (
           <div className="grid gap-3">
             {sites.map(site => (
-              <div key={site.id} className="bg-white border border-slate-200 rounded-lg p-4">
+              <div key={site.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2">
@@ -155,7 +155,7 @@ export function SiteSettingsPage() {
           </div>
           <button
             onClick={() => { setEditingSupplier(null); setShowSupplierForm(true) }}
-            className="px-4 py-2 bg-violet-600 text-white text-sm rounded-md hover:bg-violet-700"
+            className="px-4 py-2 rounded-md bg-primary text-sm text-white hover:bg-primary-hover"
           >
             添加供应商
           </button>
@@ -168,7 +168,7 @@ export function SiteSettingsPage() {
         ) : (
           <div className="grid gap-3">
             {suppliers.map(sup => (
-              <div key={sup.id} className="bg-white border border-slate-200 rounded-lg p-4">
+              <div key={sup.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-medium text-slate-900">{sup.name}</h3>
@@ -195,7 +195,7 @@ export function SiteSettingsPage() {
           <h2 className="text-lg font-semibold text-slate-900">汇率设置</h2>
           <p className="text-sm text-slate-500">用于计算利润率，当前 1 AED ≈ {savedRate} CNY</p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-end gap-3">
             <div className="flex-1 max-w-xs">
               <label className="block text-sm font-medium text-slate-700 mb-1">AED → CNY 汇率</label>
@@ -211,7 +211,7 @@ export function SiteSettingsPage() {
             <button
               onClick={handleSaveRate}
               disabled={savingRate || exchangeRate === savedRate}
-              className="px-4 py-2 text-sm bg-violet-600 text-white rounded-md hover:bg-violet-700 disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
             >
               {savingRate ? '保存中...' : '保存'}
             </button>
@@ -225,7 +225,7 @@ export function SiteSettingsPage() {
           <h2 className="text-lg font-semibold text-slate-900">商品分类与标签</h2>
           <p className="text-sm text-slate-500">每行一项；保存后产品编辑页与列表筛选下拉将使用此处配置。</p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-4">
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">分类</label>
             <textarea
@@ -250,7 +250,7 @@ export function SiteSettingsPage() {
             type="button"
             onClick={() => void handleSaveProductTaxonomy()}
             disabled={savingTaxonomy}
-            className="px-4 py-2 text-sm bg-violet-600 text-white rounded-md hover:bg-violet-700 disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             {savingTaxonomy ? '保存中...' : '保存分类与标签'}
           </button>
@@ -307,7 +307,7 @@ function SiteFormDialog({ site, onClose, onSaved }: { site: Site | null; onClose
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50">取消</button>
-            <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-violet-600 text-white rounded-md hover:bg-violet-700 disabled:opacity-50">{saving ? '保存中...' : '保存'}</button>
+            <button type="submit" disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50">{saving ? '保存中...' : '保存'}</button>
           </div>
         </form>
       </div>
@@ -355,7 +355,7 @@ function SupplierFormDialog({ supplier, onClose, onSaved }: { supplier: Supplier
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50">取消</button>
-            <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-violet-600 text-white rounded-md hover:bg-violet-700 disabled:opacity-50">{saving ? '保存中...' : '保存'}</button>
+            <button type="submit" disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50">{saving ? '保存中...' : '保存'}</button>
           </div>
         </form>
       </div>

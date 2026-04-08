@@ -70,7 +70,7 @@ export function CatalogBrochurePage() {
       <div className="mb-6">
         <Link
           to="/products"
-          className="text-sm font-medium text-sky-700 hover:text-sky-900 transition-colors"
+          className="text-sm font-medium text-primary transition-colors hover:text-primary-hover"
         >
           ← 返回产品列表
         </Link>

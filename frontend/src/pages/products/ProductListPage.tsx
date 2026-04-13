@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CATALOG_TAG_HER, CATALOG_TAG_HIM, hasGenderCatalogTag, normalizeCatalogTagNames } from '../../lib/catalogTags'
 import { DEFAULT_PRODUCT_CATEGORIES, parseTaxonomyJson } from '../../lib/productTaxonomy'
@@ -8,10 +8,45 @@ import type { Product, Pagination, Site, SyncResult } from '../../services/types
 
 type EditingCell = { id: string; field: string } | null
 
+const GATEWAY_TIMEOUT_HINT =
+  '网关超时（504）。可尝试：减少一次勾选数量或分批同步；仍频繁出现请联系管理员调大 Nginx proxy_read_timeout。'
+
+function summarizeSyncFailures(
+  details: Array<{ sku: string; results: SyncResult['results'] }>,
+  maxLines = 18,
+): string {
+  const lines: string[] = []
+  for (const d of details) {
+    for (const r of d.results) {
+      if (!r.success) {
+        const err = (r.error || '未知错误').trim().slice(0, 100)
+        lines.push(`· ${d.sku} @ ${r.site_name}：${err}`)
+      }
+    }
+  }
+  if (lines.length === 0) return ''
+  const shown = lines.slice(0, maxLines)
+  const more =
+    lines.length > maxLines
+      ? `\n… 另有 ${lines.length - maxLines} 条失败未展开，可缩小批量后重试或查看服务端日志。`
+      : ''
+  return `\n\n失败明细（共 ${lines.length} 条，显示前 ${shown.length} 条）：\n${shown.join('\n')}${more}`
+}
+
+function formatSiteNamesForUi(names: string[], maxShow = 3): string {
+  if (names.length === 0) return '—'
+  if (names.length <= maxShow) return names.join('、')
+  return `${names.slice(0, maxShow).join('、')} 等 ${names.length} 个站点`
+}
+
+const LIST_PAGE_SIZE_OPTIONS = [30, 70, 150] as const
+type ListPageSize = (typeof LIST_PAGE_SIZE_OPTIONS)[number]
+
 export function ProductListPage() {
   const navigate = useNavigate()
   const [products, setProducts] = useState<Product[]>([])
   const [pagination, setPagination] = useState<Pagination>({ page: 1, page_size: 150, total: 0, total_pages: 0 })
+  const [listPageSize, setListPageSize] = useState<ListPageSize>(150)
   const [totalSites, setTotalSites] = useState(0)
   /** 本地库商品总数（与列表筛选无关）；全量同步会推送全部 db 件 */
   const [dbProductCount, setDbProductCount] = useState(0)
@@ -23,6 +58,7 @@ export function ProductListPage() {
   const [filterCatalogIn, setFilterCatalogIn] = useState<'0' | '1' | ''>('')
   const [loading, setLoading] = useState(true)
   const [syncingAll, setSyncingAll] = useState(false)
+  const [syncingSelected, setSyncingSelected] = useState(false)
   const [showSyncMenu, setShowSyncMenu] = useState(false)
   const [selectedSyncSites, setSelectedSyncSites] = useState<string[]>([])
   const [sites, setSites] = useState<Site[]>([])
@@ -32,6 +68,7 @@ export function ProductListPage() {
   const [editValue, setEditValue] = useState<any>('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchUpdating, setBatchUpdating] = useState(false)
+  const [syncProgress, setSyncProgress] = useState<null | { processed: number; total: number; batchIndex: number; batchTotal: number }>(null)
   const [categories, setCategories] = useState<string[]>(DEFAULT_PRODUCT_CATEGORIES)
   const [loadError, setLoadError] = useState('')
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null)
@@ -47,9 +84,13 @@ export function ProductListPage() {
     return []
   }
 
-  const loadProducts = async (page = 1, overrides?: { category?: string; status?: string; tag?: string; catalog_in?: '0' | '1' | '' }) => {
+  const loadProducts = async (
+    page = 1,
+    overrides?: { category?: string; status?: string; tag?: string; catalog_in?: '0' | '1' | ''; page_size?: number },
+  ) => {
     setLoading(true)
     setLoadError('')
+    const pageSize = (overrides?.page_size !== undefined ? overrides.page_size : listPageSize) as ListPageSize
     try {
       const cat = overrides?.category !== undefined ? overrides.category : filterCategory
       const st = overrides?.status !== undefined ? overrides.status : filterStatus
@@ -58,7 +99,7 @@ export function ProductListPage() {
       const data = await productApi.list({
         keyword: keyword || undefined,
         page,
-        page_size: 150,
+        page_size: pageSize,
         category: cat || undefined,
         status: st !== '' ? st : undefined,
         tag: tg || undefined,
@@ -70,7 +111,7 @@ export function ProductListPage() {
       setDbProductCount(typeof data.db_product_count === 'number' ? data.db_product_count : data.pagination?.total ?? 0)
     } catch (e: unknown) {
       setProducts([])
-      setPagination({ page: 1, page_size: 150, total: 0, total_pages: 0 })
+      setPagination({ page: 1, page_size: pageSize, total: 0, total_pages: 0 })
       setTotalSites(0)
       setDbProductCount(0)
       const isNetwork =
@@ -128,10 +169,13 @@ export function ProductListPage() {
   const handleSyncAll = async () => {
     if (selectedSyncSites.length === 0) return
     const totalInDb = dbProductCount > 0 ? dbProductCount : pagination.total
-    const msg = `将同步本地数据库中的全部 ${totalInDb} 件商品到已选的 ${selectedSyncSites.length} 个站点。\n\n此操作与当前列表的搜索/筛选无关；编辑页「同步至网站」才是只推一件商品。\n\n确定继续？`
+    const siteNames = selectedSyncSites.map(id => sites.find(s => s.id === id)?.name).filter(Boolean) as string[]
+    const siteListStr = formatSiteNamesForUi(siteNames, 4)
+    const msg = `将同步本地数据库中的全部 ${totalInDb} 件商品到已选的 ${selectedSyncSites.length} 个站点。\n目标站点：${siteListStr}\n\n此操作与当前列表的搜索/筛选、左侧勾选无关。\n\n若只需推送部分商品，请先取消，改用列表底部「同步选中到站点」（站点范围与此处勾选一致）。单件也可用编辑页「同步至网站」。\n\n确定继续全量同步？`
     if (!confirm(msg)) return
     setShowSyncMenu(false)
     setSyncingAll(true)
+    setSyncProgress(null)
     /** 每批件数略小于 Nginx 常见 60s 上限，避免单请求 504（服务端仍支持一次 sync-all） */
     const BATCH_SIZE = 6
     try {
@@ -140,6 +184,7 @@ export function ProductListPage() {
         alert('本地无商品可同步')
         return
       }
+      const batchTotal = Math.max(1, Math.ceil(ids.length / BATCH_SIZE))
       let synced = 0
       let failed = 0
       const detailsAccum: Array<{
@@ -150,6 +195,9 @@ export function ProductListPage() {
       }> = []
       for (let i = 0; i < ids.length; i += BATCH_SIZE) {
         const chunk = ids.slice(i, i + BATCH_SIZE)
+        const batchIndex = Math.floor(i / BATCH_SIZE) + 1
+        const processed = Math.min(i + chunk.length, ids.length)
+        setSyncProgress({ processed, total: ids.length, batchIndex, batchTotal })
         const result = await productApi.syncBatch(chunk, selectedSyncSites)
         synced += result.synced
         failed += result.failed
@@ -163,19 +211,96 @@ export function ProductListPage() {
               .map(d => d.sku)
               .join(', ')}${withSkips.length > 8 ? '…' : ''}`
           : ''
+      const failLines = failed > 0 ? summarizeSyncFailures(detailsAccum) : ''
+      const outcomeHint =
+        failed === 0 ? '全部成功。' : synced === 0 ? '全部失败，请根据下方明细排查。' : '部分成功，请根据下方明细排查失败项。'
       alert(
-        `全量同步完成：共 ${ids.length} 件商品参与；按站点计成功 ${synced} 次、失败 ${failed} 次。${skipHint}`,
+        `全量同步完成：共 ${ids.length} 件商品参与；按站点计成功 ${synced} 次、失败 ${failed} 次。${outcomeHint}${skipHint}${failLines}`,
       )
       loadProducts(pagination.page)
     } catch (err: any) {
       const raw = err?.message ?? String(err)
       const short =
-        raw.includes('504') || raw.includes('Gateway Time-out')
-          ? '网关超时。若商品很多，可把每批件数改小或联系管理员加大 Nginx proxy_read_timeout。'
+        raw.includes('504') || raw.includes('Gateway Time-out') || raw.includes('timeout')
+          ? GATEWAY_TIMEOUT_HINT
           : raw
-      alert(`同步失败: ${short}`)
+      alert(`同步失败：${short}`)
     } finally {
       setSyncingAll(false)
+      setSyncProgress(null)
+    }
+  }
+
+  /** 仅同步列表勾选的 id；站点优先用顶部「同步全部」菜单里已勾的站点，否则推送到全部已配置站点 */
+  const handleSyncSelected = async () => {
+    if (selectedIds.size === 0) return
+    const ids = Array.from(selectedIds)
+    const siteIdsForSync =
+      selectedSyncSites.length > 0 ? selectedSyncSites : sites.map(s => s.id)
+    if (siteIdsForSync.length === 0) {
+      alert('请先在「站点设置」中添加至少一个 WooCommerce 站点。')
+      return
+    }
+    const siteNames =
+      selectedSyncSites.length > 0
+        ? (selectedSyncSites.map(id => sites.find(s => s.id === id)?.name).filter(Boolean) as string[])
+        : sites.map(s => s.name)
+    const siteListStr = formatSiteNamesForUi(siteNames, 4)
+    const siteNote =
+      selectedSyncSites.length > 0
+        ? `目标站点（与右上角同步菜单勾选一致）：${siteListStr}`
+        : `未在右上角勾选站点，将推送到全部已配置站点：${siteListStr}`
+    const msg = `将同步列表中勾选的 ${ids.length} 件商品到 Woo。\n${siteNote}\n\n全量同步与列表勾选无关；仅本次勾选的商品会被推送。\n\n确定继续？`
+    if (!confirm(msg)) return
+    setSyncingSelected(true)
+    setSyncProgress(null)
+    const BATCH_SIZE = 6
+    try {
+      const batchTotal = Math.max(1, Math.ceil(ids.length / BATCH_SIZE))
+      let synced = 0
+      let failed = 0
+      const detailsAccum: Array<{
+        product_id: string
+        sku: string
+        results: SyncResult['results']
+        skipped_images?: string[]
+      }> = []
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const chunk = ids.slice(i, i + BATCH_SIZE)
+        const batchIndex = Math.floor(i / BATCH_SIZE) + 1
+        const processed = Math.min(i + chunk.length, ids.length)
+        setSyncProgress({ processed, total: ids.length, batchIndex, batchTotal })
+        const result = await productApi.syncBatch(chunk, siteIdsForSync)
+        synced += result.synced
+        failed += result.failed
+        if (result.details?.length) detailsAccum.push(...result.details)
+      }
+      const withSkips = detailsAccum.filter(d => (d.skipped_images?.length ?? 0) > 0)
+      const skipHint =
+        withSkips.length > 0
+          ? `\n\n${withSkips.length} 件商品有图片因远程不可访问被跳过（其余内容已同步），SKU 示例：${withSkips
+              .slice(0, 8)
+              .map(d => d.sku)
+              .join(', ')}${withSkips.length > 8 ? '…' : ''}`
+          : ''
+      const failLines = failed > 0 ? summarizeSyncFailures(detailsAccum) : ''
+      const outcomeHint =
+        failed === 0 ? '全部成功。' : synced === 0 ? '全部失败，请根据下方明细排查。' : '部分成功，请根据下方明细排查失败项。'
+      alert(
+        `选中商品同步完成：共 ${ids.length} 件参与；按站点计成功 ${synced} 次、失败 ${failed} 次。${outcomeHint}${skipHint}${failLines}`,
+      )
+      setSelectedIds(new Set())
+      loadProducts(pagination.page)
+    } catch (err: any) {
+      const raw = err?.message ?? String(err)
+      const short =
+        raw.includes('504') || raw.includes('Gateway Time-out') || raw.includes('timeout')
+          ? GATEWAY_TIMEOUT_HINT
+          : raw
+      alert(`同步失败：${short}`)
+    } finally {
+      setSyncingSelected(false)
+      setSyncProgress(null)
     }
   }
 
@@ -359,6 +484,19 @@ export function ProductListPage() {
 
   const cellClass = 'cursor-pointer hover:bg-primary-muted/50 rounded px-1 -mx-1 transition-colors'
   const colSpanCount = 11
+  const selectionBusy = syncingAll || syncingSelected || batchUpdating
+  const selectedOnPage = useMemo(
+    () => products.filter(p => selectedIds.has(p.id)).length,
+    [products, selectedIds],
+  )
+  const selectedOnOtherPages = Math.max(0, selectedIds.size - selectedOnPage)
+  const syncBarSiteLine = useMemo(() => {
+    const names =
+      selectedSyncSites.length > 0
+        ? (selectedSyncSites.map(id => sites.find(s => s.id === id)?.name).filter(Boolean) as string[])
+        : sites.map(s => s.name)
+    return formatSiteNamesForUi(names, 3)
+  }, [selectedSyncSites, sites])
 
   return (
     <div className="space-y-4">
@@ -412,13 +550,33 @@ export function ProductListPage() {
             <option value="1">仅进图册</option>
             <option value="0">未进图册</option>
           </select>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <span className="whitespace-nowrap">每页显示</span>
+            <select
+              value={listPageSize}
+              disabled={selectionBusy || loading}
+              title="每页条数"
+              onChange={e => {
+                const n = Number(e.target.value) as ListPageSize
+                setListPageSize(n)
+                void loadProducts(1, { page_size: n })
+              }}
+              className="min-w-[5.5rem] rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+            >
+              {LIST_PAGE_SIZE_OPTIONS.map(n => (
+                <option key={n} value={n}>{n}条</option>
+              ))}
+            </select>
+          </label>
           <button type="submit" className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50">搜索</button>
         </form>
         <div className="flex gap-2">
           <div className="relative" ref={importMenuRef}>
             <button
+              type="button"
               onClick={() => setShowImport(!showImport)}
-              disabled={pulling || sites.length === 0}
+              disabled={pulling || sites.length === 0 || selectionBusy}
+              title={selectionBusy ? '同步或批量操作中，请稍候' : undefined}
               className="px-4 py-2 text-sm border border-emerald-200 text-emerald-600 rounded-md hover:bg-emerald-50 disabled:opacity-50"
             >
               {pulling ? '导入中...' : '从源站导入'}
@@ -441,16 +599,21 @@ export function ProductListPage() {
           <div className="relative" ref={syncMenuRef}>
             <button
               onClick={() => { setShowSyncMenu(!showSyncMenu); setShowImport(false) }}
-              disabled={syncingAll || dbProductCount === 0}
-              title={dbProductCount > 0 ? `将同步本地全部 ${dbProductCount} 件商品（与筛选无关）` : '本地无商品可同步'}
+              disabled={selectionBusy || dbProductCount === 0}
+              title={dbProductCount > 0 ? `全量同步：本地全部 ${dbProductCount} 件（与搜索/筛选/列表勾选无关）。列表底部「同步选中」使用此处勾选的站点；未勾选任何站点时，选中同步会推到全部站点。` : '本地无商品可同步'}
               className="rounded-md border border-primary-border px-4 py-2 text-sm text-primary hover:bg-primary-muted disabled:opacity-50"
             >
-              {syncingAll ? '同步中...' : '同步全部到站点'}
+              {syncingAll
+                ? (syncProgress ? `同步中 ${syncProgress.processed}/${syncProgress.total} 件` : '同步中...')
+                : '同步全部到站点'}
             </button>
             {showSyncMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[220px]">
+              <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[240px] max-w-[min(100vw-1rem,20rem)]">
                 <p className="px-3 py-2 text-xs text-slate-400 border-b border-slate-100">
-                  全量同步（本地约 {dbProductCount || '—'} 件，与筛选无关）
+                  全量同步（本地约 {dbProductCount || '—'} 件，与筛选/勾选无关）
+                </p>
+                <p className="px-3 py-2 text-[11px] leading-snug text-slate-500 border-b border-slate-100 bg-slate-50/80">
+                  此处勾选的站点同样用于列表底部「同步选中到站点」。若此处未勾选任何站点，选中同步将推送到全部已配置站点。
                 </p>
                 {sites.map(s => (
                   <label key={s.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
@@ -458,6 +621,7 @@ export function ProductListPage() {
                       type="checkbox"
                       checked={selectedSyncSites.includes(s.id)}
                       onChange={() => toggleSyncSite(s.id)}
+                      disabled={selectionBusy}
                       className="rounded border-slate-300"
                     />
                     {s.name}
@@ -465,11 +629,12 @@ export function ProductListPage() {
                 ))}
                 <div className="px-3 py-2 border-t border-slate-100">
                   <button
-                    onClick={handleSyncAll}
-                    disabled={selectedSyncSites.length === 0}
+                    type="button"
+                    onClick={() => void handleSyncAll()}
+                    disabled={selectedSyncSites.length === 0 || selectionBusy}
                     className="w-full rounded bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
                   >
-                    确认同步全部商品 ({selectedSyncSites.length} 个站点)
+                    确认全量同步（{selectedSyncSites.length} 个站点）
                   </button>
                 </div>
               </div>
@@ -491,6 +656,20 @@ export function ProductListPage() {
         </div>
       ) : null}
 
+      {(syncingAll || syncingSelected) && syncProgress ? (
+        <div
+          className="rounded-lg border border-primary-border/60 bg-primary-muted/25 px-4 py-2.5 text-sm text-slate-800"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="font-medium text-primary">同步进行中</span>
+          <span className="text-slate-600">
+            {' '}
+            — 第 {syncProgress.batchIndex}/{syncProgress.batchTotal} 批，已处理商品 {syncProgress.processed}/{syncProgress.total} 件（关闭页面可能中断请求）
+          </span>
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
@@ -500,6 +679,8 @@ export function ProductListPage() {
                   type="checkbox"
                   checked={allSelected}
                   onChange={() => toggleSelectAll()}
+                  disabled={selectionBusy}
+                  title={selectionBusy ? '同步或批量操作中，请稍候' : '全选本页'}
                   className="rounded border-slate-300"
                 />
               </th>
@@ -536,6 +717,8 @@ export function ProductListPage() {
                       type="checkbox"
                       checked={selectedIds.has(p.id)}
                       onChange={() => toggleSelect(p.id)}
+                      disabled={selectionBusy}
+                      title={selectionBusy ? '同步或批量操作中，请稍候' : undefined}
                       className="rounded border-slate-300"
                     />
                   </td>
@@ -649,39 +832,89 @@ export function ProductListPage() {
       </div>
 
       {pagination.total_pages > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
-          <span>共 {pagination.total} 条</span>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between text-sm text-slate-500">
+          <span>
+            共 {pagination.total} 条
+            {selectedIds.size > 0 && selectedOnOtherPages > 0 ? (
+              <span className="text-slate-600"> · 当前勾选含其他页 {selectedOnOtherPages} 项，翻页不会清空勾选</span>
+            ) : null}
+          </span>
           <div className="flex gap-2">
-            <button disabled={pagination.page <= 1} onClick={() => loadProducts(pagination.page - 1)}
-              className="px-3 py-1 border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50">上一页</button>
+            <button
+              type="button"
+              disabled={pagination.page <= 1 || selectionBusy}
+              title={selectionBusy ? '同步或批量操作中，请稍候' : undefined}
+              onClick={() => loadProducts(pagination.page - 1)}
+              className="px-3 py-1 border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50"
+            >
+              上一页
+            </button>
             <span className="px-3 py-1">{pagination.page} / {pagination.total_pages}</span>
-            <button disabled={pagination.page >= pagination.total_pages} onClick={() => loadProducts(pagination.page + 1)}
-              className="px-3 py-1 border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50">下一页</button>
+            <button
+              type="button"
+              disabled={pagination.page >= pagination.total_pages || selectionBusy}
+              title={selectionBusy ? '同步或批量操作中，请稍候' : undefined}
+              onClick={() => loadProducts(pagination.page + 1)}
+              className="px-3 py-1 border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50"
+            >
+              下一页
+            </button>
           </div>
         </div>
       )}
 
       {/* Batch action bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border border-slate-200 rounded-lg shadow-lg px-6 py-3 flex items-center gap-4 z-50">
-          <span className="text-sm text-slate-600">已选 {selectedIds.size} 项</span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border border-slate-200 rounded-lg shadow-lg px-6 py-3 flex flex-wrap items-center gap-3 z-50 max-w-[min(100vw-2rem,56rem)]">
+          <div className="flex flex-col gap-0.5 min-w-0 basis-full sm:basis-auto sm:max-w-[14rem] md:max-w-xs">
+            <span className="text-sm text-slate-700">
+              已选 {selectedIds.size} 项
+              {selectedOnOtherPages > 0 ? (
+                <span className="text-slate-500 font-normal">（本页 {selectedOnPage}，其他页 {selectedOnOtherPages}）</span>
+              ) : null}
+            </span>
+            <span
+              className="text-xs text-slate-500 leading-snug line-clamp-2"
+              title={`目标站点：${syncBarSiteLine}`}
+            >
+              目标站点：{syncBarSiteLine}
+              <span className="text-slate-400">
+                {selectedSyncSites.length > 0 ? ' · 与右上角菜单一致' : ' · 菜单未勾选时推全部'}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSyncSelected()}
+            disabled={batchUpdating || selectionBusy || sites.length === 0}
+            title={
+              selectedSyncSites.length > 0
+                ? `推送到已勾选的 ${selectedSyncSites.length} 个站点（与右上角同步菜单一致）`
+                : '未在右上角勾选站点时，将推送到全部已配置站点'
+            }
+            className="px-4 py-1.5 text-sm rounded bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
+          >
+            {syncingSelected
+              ? (syncProgress ? `同步中 ${syncProgress.processed}/${syncProgress.total} 件` : '同步中...')
+              : '同步选中到站点'}
+          </button>
           <button
             onClick={() => handleBatchStatus(1)}
-            disabled={batchUpdating}
+            disabled={batchUpdating || selectionBusy}
             className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
           >
             设为 Active
           </button>
           <button
             onClick={() => handleBatchStatus(0)}
-            disabled={batchUpdating}
+            disabled={batchUpdating || selectionBusy}
             className="px-4 py-1.5 text-sm bg-slate-500 text-white rounded hover:bg-slate-600 disabled:opacity-50"
           >
             设为 Draft
           </button>
           <button
             onClick={() => handleBatchCatalog(1)}
-            disabled={batchUpdating}
+            disabled={batchUpdating || selectionBusy}
             className="px-4 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50"
             title="需有 for him / for her 标签；无标签的行会失败并提示"
           >
@@ -689,7 +922,7 @@ export function ProductListPage() {
           </button>
           <button
             onClick={() => handleBatchCatalog(0)}
-            disabled={batchUpdating}
+            disabled={batchUpdating || selectionBusy}
             className="px-4 py-1.5 text-sm border border-amber-200 text-amber-800 rounded hover:bg-amber-50 disabled:opacity-50"
           >
             移出进图册
@@ -697,14 +930,16 @@ export function ProductListPage() {
           <button
             type="button"
             onClick={() => void handleBatchDelete()}
-            disabled={batchUpdating}
+            disabled={batchUpdating || selectionBusy}
             className="px-4 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
           >
             批量删除
           </button>
           <button
+            type="button"
             onClick={() => setSelectedIds(new Set())}
-            className="px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700"
+            disabled={selectionBusy}
+            className="px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 disabled:opacity-50"
           >
             取消
           </button>

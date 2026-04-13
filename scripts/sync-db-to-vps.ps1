@@ -1,13 +1,13 @@
 # Upload backend/data/vaultcare.db to VPS (needs OpenSSH scp, root password or SSH key)
 # Usage from repo root: .\scripts\sync-db-to-vps.ps1
-# Custom SSH port (Hostinger sometimes not 22): .\scripts\sync-db-to-vps.ps1 -SshPort 65002
+# Spaceship Starlight 默认 SSH 端口 22022；其它 VPS 常为 22：.\scripts\sync-db-to-vps.ps1 -SshPort 22
 # Before upload on VPS: pm2 stop <your-api-name>
 # After upload on VPS: chmod 644 .../vaultcare.db && pm2 restart <name> && pm2 save
 
 param(
-  [string] $VpsHost = "72.61.140.40",
+  [string] $VpsHost = "104.207.64.70",
   [string] $RemoteDir = "/var/www/vault-os1.1/backend/data",
-  [int] $SshPort = 22
+  [int] $SshPort = 22022
 )
 
 $ErrorActionPreference = "Stop"

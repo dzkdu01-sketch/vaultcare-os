@@ -1,5 +1,7 @@
 # 部署索引（每次部署前先读本文）
 
+**生产环境速查（IP、端口、目录、踩坑）：** [`DEPLOYMENT-SUMMARY.md`](DEPLOYMENT-SUMMARY.md)
+
 本文是 **部署前的检查清单与入口**，细节与排错见同目录 [`README.md`](README.md)。
 
 ---
@@ -35,7 +37,7 @@
 - [ ] 已确认 **云防火墙 / 安全组** 放行 **TCP 80**（网站）及 **22**（SSH 传文件）；SSH 若为非 22 端口，已记下端口号。  
 - [ ] 已在服务商面板设置并保存 **VPS root 密码**，或已配置 **SSH 公钥**（本机 `scp` / WinSCP 依赖此）。  
 - [ ] 本机代码已 **`git push`**，服务器将 **`git pull`** 的版本与预期一致。  
-- [ ] 若使用 **CloudPanel 等面板**：知晓其 Nginx 通常只加载 **`/etc/nginx/sites-enabled/*.conf`**，启用站点需 **`.conf` 后缀** 的软链（详见 [`README.md` 排错章节](README.md)）。
+- [ ] 若使用**带可视化面板的主机**：其 Nginx 可能只加载 **`/etc/nginx/sites-enabled/*.conf`**，启用站点需 **`.conf` 后缀** 的软链（详见 [`README.md` 排错章节](README.md)）。
 
 ### 仅首次部署
 

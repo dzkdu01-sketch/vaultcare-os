@@ -29,6 +29,15 @@ dist/
 
 # 本地数据库（勿提交）
 backend/data/*.db
+# 数据库临时备份（勿提交）
+backend/data/*.bak
+
+# 安装包与临时页面（勿提交）
+*.exe
+fz-*.html
+
+# 本地部署备忘（含 SSH/账号等敏感信息，勿提交）
+deploy/secrets.local.md
 
 # Windows 保留设备名，会导致 git add 异常，勿提交
 nul

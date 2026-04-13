@@ -2,7 +2,7 @@
 # Requires: OpenSSH (ssh/scp), git push done, VPS root SSH.
 #
 #   .\scripts\deploy-full-to-vps.ps1
-#   .\scripts\deploy-full-to-vps.ps1 -SshPort 65002
+#   .\scripts\deploy-full-to-vps.ps1 -SshPort 22
 #   .\scripts\deploy-full-to-vps.ps1 -SkipDb
 #
 # First time: commit and push deploy/update-server.sh; this script uploads it each run before executing.
@@ -11,9 +11,9 @@
 # several times unless you use an SSH key. Running inside a non-interactive tool may look "stuck" at ssh/scp.
 
 param(
-  [string] $VpsHost = "72.61.140.40",
+  [string] $VpsHost = "104.207.64.70",
   [string] $RemoteRoot = "/var/www/vault-os1.1",
-  [int] $SshPort = 22,
+  [int] $SshPort = 22022,
   [string] $GitBranch = "main",
   [switch] $SkipDb,
   [switch] $NoBackup

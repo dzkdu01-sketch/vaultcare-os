@@ -40,7 +40,7 @@ git clone <你的仓库地址> vault-os1.1
 3. 执行下面**二选一**（你已是 root 时**不要**写 `sudo`，部分精简系统没有安装 `sudo`，会报 `sudo: command not found`）：
 
 ```bash
-# 已是 root（推荐，与你当前 CloudPanel / VPS 终端一致）
+# 已是 root（推荐，与服务商网页终端一致）
 bash /var/www/vault-os1.1/deploy/server-install.sh
 ```
 
@@ -97,7 +97,7 @@ pm2 save
 
 ## 排错：打开网站仍是旧版「Vaultcare OS」登录页？
 
-若 **`/etc/nginx/sites-enabled/`** 里**同时存在** `vaultcare.conf`（旧站）和 `vault-os11`（新站），浏览器可能仍访问到旧目录 `/var/www/vaultcare/frontend/dist`。一键脚本会删除 `vaultcare`，但 CloudPanel 等环境常用文件名 **`vaultcare.conf`**，需手动关掉旧站：
+若 **`/etc/nginx/sites-enabled/`** 里**同时存在** `vaultcare.conf`（旧站）和 `vault-os11`（新站），浏览器可能仍访问到旧目录 `/var/www/vaultcare/frontend/dist`。一键脚本会删除 `vaultcare`，但部分主机面板生成的 **`vaultcare.conf`** 可能仍存在，需手动关掉旧站：
 
 ```bash
 rm -f /etc/nginx/sites-enabled/vaultcare.conf
@@ -155,8 +155,7 @@ npm run dev
 
 ## 九、没有删除的文档说明
 
-- `10-业务底稿/`、`20-方案设计/`、`90-归档/`：需求与设计资料；**部署运行不依赖**这些 Markdown，可按需保留或只在公司内部存档。
-- `docs/plans/`：开发计划与交接记录，非运行时文件。
+- 需求类长文档已从本仓库移除；**部署与运行仅依赖** `frontend`、`backend`、`deploy` 与数据库文件。
 
 若你希望进一步「只保留代码、删掉全部文档」以减小体积，请先备份后再删，并自行承担丢失需求说明的风险。
 
@@ -187,10 +186,10 @@ cp /var/www/vault-os1.1/backend/data/vaultcare.db /var/www/vault-os1.1/backend/d
 
 **方式 A：PowerShell / CMD 用 `scp`（需已安装 OpenSSH 客户端）**
 
-在本机执行（把 IP 换成你的 VPS）：
+在本机执行（把 IP、端口换成你的 VPS；**Spaceship Starlight 的 SSH 端口为 22022**，非 22）：
 
 ```powershell
-scp "D:\cursor\vault-os1.1\backend\data\vaultcare.db" root@72.61.140.40:/var/www/vault-os1.1/backend/data/vaultcare.db
+scp -P 22022 "D:\cursor\vault-os1.1\backend\data\vaultcare.db" root@104.207.64.70:/var/www/vault-os1.1/backend/data/vaultcare.db
 ```
 
 **方式 B：WinSCP / FileZilla（SFTP）**

@@ -1,0 +1,2 @@
+# Shell scripts must use LF so Linux/bash on VPS can run them after checkout or scp from Windows.
+*.sh text eol=lf

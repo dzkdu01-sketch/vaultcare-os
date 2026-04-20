@@ -1,10 +1,13 @@
 import { Router, Request, Response } from 'express'
 import { getDb } from '../db/index.js'
+import { requireAuth, requireRole } from '../middleware/auth.js'
 
 export const settingsRouter = Router()
 
 function respond(res: Response, data: unknown, code = 200) { res.status(code).json({ code, message: 'ok', data }) }
 function respondError(res: Response, message: string, code = 400) { res.status(code).json({ code, message, data: null }) }
+
+settingsRouter.use(requireAuth, requireRole('operator'))
 
 // GET /settings
 settingsRouter.get('/', (_req: Request, res: Response) => {

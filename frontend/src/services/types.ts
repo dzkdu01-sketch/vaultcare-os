@@ -6,6 +6,10 @@ export type Site = {
   consumer_key: string
   consumer_secret: string
   status: 'active' | 'inactive'
+  distributor_id?: string
+  distributor_name?: string
+  distributor_code?: string
+  webhook_secret?: string
   created_at: string
   updated_at: string
 }
@@ -195,4 +199,97 @@ export type PullResult = {
     pulled: number
     error?: string
   }>
+}
+
+// === 认证 ===
+export type AuthUser = {
+  id: number
+  name: string
+  role: 'operator' | 'distributor'
+  distributorId?: number
+  code?: string
+}
+
+export type LoginResponse = {
+  token: string
+  user: AuthUser
+}
+
+// === 分销商 ===
+export type Distributor = {
+  id: number
+  name: string
+  code: string
+  username: string
+  status: 'active' | 'disabled'
+  site_display_name?: string
+  created_at: string
+  updated_at: string
+  sites?: Site[]
+}
+
+export type DistributorInput = {
+  name: string
+  code: string
+  username: string
+  password: string
+}
+
+// === 扩展订单类型 ===
+export type OrderStatusValue = 'unconfirmed' | 'customer_confirmed'
+export type DeliveryStatusValue = 'not_submitted' | 'submitted' | 'delivery_exception' | 'settled' | 'cancelled'
+
+export type ExtendedOrder = Order & {
+  distributor_id?: number
+  distributor_name?: string
+  distributor_code?: string
+  source?: 'woo_webhook' | 'woo_api' | 'manual'
+  created_by_role?: string
+  customer_city?: string
+  customer_address?: string
+  order_status?: OrderStatusValue
+  delivery_status?: DeliveryStatusValue
+  item_summary?: string
+  expedited_fee?: number
+  note?: string
+  woo_raw_data?: string
+  reviewed_by?: number
+  status_log?: Array<{
+    id: number
+    field: string
+    from_value: string | null
+    to_value: string
+    changed_by: string
+    note: string | null
+    changed_at: string
+  }>
+}
+
+export type OrderInput = {
+  distributor_id?: number
+  site_id?: string | null
+  customer_name?: string
+  customer_phone?: string
+  customer_whatsapp?: string
+  customer_city?: string
+  customer_address?: string
+  line_items?: Array<{
+    local_product_id?: string | number
+    sku?: string
+    name?: string
+    image_url?: string
+    quantity: number
+    price: number
+    qr_cost?: number | null
+    self_cost?: number | null
+  }>
+  item_summary?: string
+  expedited_fee?: number
+  note?: string
+  order_status?: OrderStatusValue
+}
+
+export type OrderListResponse = PaginatedList<ExtendedOrder> & {
+  order_status_counts: Record<string, number>
+  delivery_status_counts: Record<string, number>
 }

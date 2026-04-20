@@ -1,29 +1,37 @@
-type MockUser = {
-  id: string
-  name: string
+import type { AuthUser } from '../../services/types'
+
+const TOKEN_KEY = 'auth_token'
+const USER_KEY = 'auth_user'
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
 }
 
-const STORAGE_KEY = 'vaultcare_mock_user'
-
-function readUser(): MockUser | null {
+export function getSessionUser(): AuthUser | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(USER_KEY)
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
   }
 }
 
-export function getSessionUser() {
-  return readUser()
+export function setAuth(token: string, user: AuthUser) {
+  localStorage.setItem(TOKEN_KEY, token)
+  localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
 
-export function signInMockUser() {
-  const user: MockUser = { id: 'u-1', name: 'Admin' }
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user))
-  return user
+export function clearAuth() {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(USER_KEY)
 }
 
-export function signOutMockUser() {
-  sessionStorage.removeItem(STORAGE_KEY)
+export function isOperator(): boolean {
+  const user = getSessionUser()
+  return user?.role === 'operator'
+}
+
+export function isDistributor(): boolean {
+  const user = getSessionUser()
+  return user?.role === 'distributor'
 }

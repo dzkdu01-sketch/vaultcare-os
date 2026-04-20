@@ -6,18 +6,28 @@ import { siteRouter } from './routes/sites.js'
 import { orderRouter } from './routes/orders.js'
 import { supplierRouter } from './routes/suppliers.js'
 import { settingsRouter } from './routes/settings.js'
+import { authRouter } from './routes/auth.js'
+import { distributorRouter } from './routes/distributors.js'
+import { operatorRouter } from './routes/operators.js'
+import { webhookRouter } from './routes/webhooks.js'
+import { favoriteRouter } from './routes/favorites.js'
+import { startOrderSync } from './services/order-sync.js'
 
 async function main() {
   await initDb()
   console.log('Database initialized')
 
   const app = express()
-  /** 默认 3002：避免与本机已占用 3001 的旧 API 进程冲突（旧进程常无 /catalog 路由导致 404） */
   const PORT = process.env.PORT || 3002
 
   app.use(cors())
-  app.use(express.json())
+  app.use(express.json({ limit: '5mb' }))
 
+  app.use('/api/v1/auth', authRouter)
+  app.use('/api/v1/distributors', distributorRouter)
+  app.use('/api/v1/operators', operatorRouter)
+  app.use('/api/v1/webhooks', webhookRouter)
+  app.use('/api/v1/favorites', favoriteRouter)
   app.use('/api/v1/product', productRouter)
   app.use('/api/v1/sites', siteRouter)
   app.use('/api/v1/orders', orderRouter)
@@ -30,9 +40,7 @@ async function main() {
 
   app.listen(PORT, () => {
     console.log(`Vaultcare API running on http://localhost:${PORT}`)
-    console.log(
-      `[vaultcare] 图册: GET /api/v1/product/catalog?audience=him|her — 自检: GET /api/v1/product/catalog-health`,
-    )
+    startOrderSync()
   })
 }
 

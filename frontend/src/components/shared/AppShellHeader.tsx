@@ -1,19 +1,18 @@
 import { useContext, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Bell,
   BookOpen,
   ChevronLeft,
-  Globe,
+  LayoutDashboard,
+  LogOut,
   Menu,
-  Settings,
-  ShoppingCart,
   User,
   X,
 } from 'lucide-react'
 import { PageHeaderContext } from '../../context/PageHeaderContext'
 import { primaryNavigation } from '../../constants/navigation'
 import { shellHeaderBarMinH, shellHeaderInner } from './shellHeaderClasses'
+import { getSessionUser, clearAuth } from '../../app/store/auth-store'
 
 function NavDivider() {
   return <span className="hidden h-8 w-px shrink-0 bg-white/25 sm:block" aria-hidden />
@@ -27,21 +26,24 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
       : 'text-white/90 hover:bg-white/10 hover:text-white',
   ].join(' ')
 
-const ROOT_SHELL_PATHS = new Set(['/products', '/products/catalog', '/orders', '/suppliers', '/settings'])
+const ROOT_SHELL_PATHS = new Set(['/products', '/products/catalog', '/orders', '/orders/new', '/suppliers', '/settings', '/my-sites'])
 
 const pageTitles: Record<string, string> = {
   '/products': '产品管理',
   '/products/new': '新建产品',
   '/products/catalog': '客户图册',
   '/orders': '订单中心',
+  '/orders/new': '新建订单',
   '/suppliers': '供应商管理',
-  '/settings': '站点设置',
+  '/settings': '管理中心',
+  '/my-sites': '我的网站',
 }
 
 function resolveTitle(pathname: string): string {
   if (pageTitles[pathname]) return pageTitles[pathname]
   if (/^\/products\/[^/]+\/edit$/.test(pathname)) return '编辑产品'
   if (pathname.startsWith('/products/')) return '产品详情'
+  if (/^\/orders\/[^/]+\/edit$/.test(pathname)) return '编辑订单'
   if (pathname.startsWith('/orders/')) return '订单详情'
   return 'Vaultcare'
 }
@@ -57,6 +59,18 @@ export function AppShellHeader() {
   const subtitle = pageHeader?.subtitle ?? null
   const headerActions = pageHeader?.headerActions
   const showBack = !ROOT_SHELL_PATHS.has(pathname)
+  const currentUser = getSessionUser()
+  const homePath = currentUser?.role === 'distributor' ? '/settings' : '/products'
+  const isOp = currentUser?.role === 'operator'
+  const isDistributor = currentUser?.role === 'distributor'
+  const visibleNav = primaryNavigation.filter(item =>
+    (!item.operatorOnly || isOp) && (!item.distributorOnly || isDistributor)
+  )
+
+  const handleLogout = () => {
+    clearAuth()
+    navigate('/login')
+  }
 
   return (
     <>
@@ -65,7 +79,7 @@ export function AppShellHeader() {
           {/* 左：品牌 + 主导航 */}
           <div className="flex min-w-0 shrink-0 items-center gap-3 sm:gap-4">
             <Link
-              to="/products"
+              to={homePath}
               className="shell-nav-focus flex shrink-0 items-center gap-2.5 rounded-lg py-1 text-white"
               onClick={() => setMobileOpen(false)}
             >
@@ -76,7 +90,7 @@ export function AppShellHeader() {
             </Link>
             <NavDivider />
             <nav className="hidden min-w-0 items-center gap-1.5 md:flex" aria-label="主导航">
-              {primaryNavigation.map(item => (
+              {visibleNav.map(item => (
                 <NavLink key={item.path} to={item.path} className={navLinkClass}>
                   {item.label}
                 </NavLink>
@@ -113,66 +127,58 @@ export function AppShellHeader() {
 
           {/* 右：胶囊 + 工具 + 页面级操作 */}
           <div className="flex min-w-0 shrink-0 items-center">
-            <div className="hidden items-center gap-2 border-l border-white/25 pl-3 lg:flex">
-              <NavLink
-                to="/products/catalog"
-                className={({ isActive }) =>
-                  [
-                    'shell-nav-focus inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-white/20 text-white'
-                      : 'bg-white/12 text-white/95 hover:bg-white/18',
-                  ].join(' ')
-                }
-              >
-                <BookOpen className="h-4 w-4 shrink-0" strokeWidth={2} />
-                客户图册
-              </NavLink>
-              <NavLink
-                to="/settings"
-                className={({ isActive }) =>
-                  [
-                    'shell-nav-focus inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-white/20 text-white'
-                      : 'bg-white/12 text-white/95 hover:bg-white/18',
-                  ].join(' ')
-                }
-              >
-                <Settings className="h-4 w-4 shrink-0" strokeWidth={2} />
-                设置
-              </NavLink>
-            </div>
+            {(isOp || isDistributor) && (
+              <div className="hidden items-center gap-2 border-l border-white/25 pl-3 md:flex">
+                {isOp && (
+                  <NavLink
+                    to="/products/catalog"
+                    className={({ isActive }) =>
+                      [
+                        'shell-nav-focus inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-white/12 text-white/95 hover:bg-white/18',
+                      ].join(' ')
+                    }
+                  >
+                    <BookOpen className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    客户图册
+                  </NavLink>
+                )}
+                <NavLink
+                  to="/settings"
+                  className={({ isActive }) =>
+                    [
+                      'shell-nav-focus inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-white/12 text-white/95 hover:bg-white/18',
+                    ].join(' ')
+                  }
+                >
+                  <LayoutDashboard className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  管理中心
+                </NavLink>
+              </div>
+            )}
 
             <div className="flex items-center gap-0.5 border-l border-white/25 pl-2 sm:gap-1 sm:pl-3">
+              {currentUser && (
+                <span className="hidden items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white/90 sm:inline-flex">
+                  <User className="h-4 w-4" strokeWidth={2} />
+                  {currentUser.name}
+                  <span className="text-xs text-white/60">
+                    ({currentUser.role === 'operator' ? '操作员' : '分销商'})
+                  </span>
+                </span>
+              )}
               <button
                 type="button"
+                onClick={handleLogout}
                 className="shell-nav-focus hidden cursor-pointer rounded-lg p-3 text-white/90 hover:bg-white/10 sm:inline-flex"
-                aria-label="语言与区域"
+                aria-label="退出登录"
               >
-                <Globe className="h-6 w-6" strokeWidth={1.75} />
-              </button>
-              <button
-                type="button"
-                className="shell-nav-focus relative hidden cursor-pointer rounded-lg p-3 text-white/90 hover:bg-white/10 sm:inline-flex"
-                aria-label="通知"
-              >
-                <Bell className="h-6 w-6" strokeWidth={1.75} />
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-orange-400 ring-2 ring-shell-nav" />
-              </button>
-              <button
-                type="button"
-                className="shell-nav-focus hidden cursor-pointer rounded-lg p-3 text-white/90 hover:bg-white/10 sm:inline-flex"
-                aria-label="购物车"
-              >
-                <ShoppingCart className="h-6 w-6" strokeWidth={1.75} />
-              </button>
-              <button
-                type="button"
-                className="shell-nav-focus hidden cursor-pointer rounded-lg p-3 text-white/90 hover:bg-white/10 sm:inline-flex"
-                aria-label="账户"
-              >
-                <User className="h-6 w-6" strokeWidth={1.75} />
+                <LogOut className="h-5 w-5" strokeWidth={1.75} />
               </button>
 
               <button
@@ -210,7 +216,7 @@ export function AppShellHeader() {
             className="absolute left-0 right-0 top-[4.5rem] z-50 border-b border-white/10 bg-shell-nav py-4 shadow-lg"
           >
             <ul className="mx-auto flex w-full max-w-[1600px] flex-col gap-1 px-5 sm:px-6 lg:px-10">
-              {primaryNavigation.map(item => (
+              {visibleNav.map(item => (
                 <li key={item.path}>
                   <NavLink
                     to={item.path}
@@ -226,36 +232,42 @@ export function AppShellHeader() {
                   </NavLink>
                 </li>
               ))}
-              <li className="mt-2 border-t border-white/10 pt-2">
-                <NavLink
-                  to="/settings"
-                  className={({ isActive }) =>
-                    [
-                      'flex items-center gap-3 rounded-lg px-4 py-3.5 text-lg font-medium',
-                      isActive ? 'bg-white/15 text-white' : 'text-white/90 hover:bg-white/10',
-                    ].join(' ')
-                  }
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <Settings className="h-6 w-6 shrink-0 opacity-90" strokeWidth={2} />
-                  设置
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/products/catalog"
-                  className={({ isActive }) =>
-                    [
-                      'flex items-center gap-3 rounded-lg px-4 py-3.5 text-lg font-medium',
-                      isActive ? 'bg-white/15 text-white' : 'text-white/90 hover:bg-white/10',
-                    ].join(' ')
-                  }
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <BookOpen className="h-6 w-6 shrink-0 opacity-90" strokeWidth={2} />
-                  客户图册
-                </NavLink>
-              </li>
+              {(isOp || isDistributor) && (
+                <>
+                  <li className="mt-2 border-t border-white/10 pt-2">
+                    <NavLink
+                      to="/settings"
+                      className={({ isActive }) =>
+                        [
+                          'flex items-center gap-3 rounded-lg px-4 py-3.5 text-lg font-medium',
+                          isActive ? 'bg-white/15 text-white' : 'text-white/90 hover:bg-white/10',
+                        ].join(' ')
+                      }
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      <LayoutDashboard className="h-6 w-6 shrink-0 opacity-90" strokeWidth={2} />
+                      管理中心
+                    </NavLink>
+                  </li>
+                  {isOp && (
+                    <li>
+                      <NavLink
+                        to="/products/catalog"
+                        className={({ isActive }) =>
+                          [
+                            'flex items-center gap-3 rounded-lg px-4 py-3.5 text-lg font-medium',
+                            isActive ? 'bg-white/15 text-white' : 'text-white/90 hover:bg-white/10',
+                          ].join(' ')
+                        }
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <BookOpen className="h-6 w-6 shrink-0 opacity-90" strokeWidth={2} />
+                        客户图册
+                      </NavLink>
+                    </li>
+                  )}
+                </>
+              )}
             </ul>
           </nav>
         </div>

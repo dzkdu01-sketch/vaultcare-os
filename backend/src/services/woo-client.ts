@@ -54,9 +54,36 @@ export interface WooOrder {
     quantity: number
     total: string
   }>
-  meta_data?: Array<{ key: string; value: string }>
+  meta_data?: Array<{ key: string; value: unknown }>
   date_created: string
   date_modified: string
+}
+
+/**
+ * WhatsApp：常见 checkout 插件写入 meta；若无专用字段，多数店铺会用 billing.phone 作为联系电话（与 WhatsApp 同号）。
+ */
+export function extractCustomerWhatsappFromWooOrder(order: WooOrder): string {
+  const meta = order.meta_data || []
+  const exact = new Set([
+    '_billing_whatsapp',
+    'billing_whatsapp',
+    'whatsapp',
+    '_whatsapp',
+  ])
+  for (const m of meta) {
+    const k = String(m?.key ?? '')
+    if (!k) continue
+    const raw = m?.value
+    const v = raw != null && typeof raw === 'object' ? JSON.stringify(raw) : String(raw ?? '')
+    const trimmed = v.trim()
+    if (!trimmed) continue
+    if (exact.has(k) || /whatsapp/i.test(k)) return trimmed
+  }
+  const billingPhone = (order.billing?.phone || '').trim()
+  if (billingPhone) return billingPhone
+  const shipPhone = String((order.shipping as { phone?: string })?.phone ?? '').trim()
+  if (shipPhone) return shipPhone
+  return ''
 }
 
 function authHeader(site: WooSite): string {
@@ -81,13 +108,14 @@ async function wooFetch<T>(site: WooSite, endpoint: string, options: RequestInit
   return res.json() as Promise<T>
 }
 
-/** 测试站点连接 */
-export async function testConnection(site: WooSite): Promise<boolean> {
+/** 测试站点连接（用商品列表接口，与常见「只读」API 密钥权限一致；避免 system_status 需管理员权限导致误报失败） */
+export async function testConnection(site: WooSite): Promise<{ ok: boolean; error?: string }> {
   try {
-    await wooFetch(site, '/system_status')
-    return true
-  } catch {
-    return false
+    await wooFetch<unknown[]>(site, '/products?per_page=1')
+    return { ok: true }
+  } catch (err: any) {
+    const msg = err?.message || String(err)
+    return { ok: false, error: msg }
   }
 }
 

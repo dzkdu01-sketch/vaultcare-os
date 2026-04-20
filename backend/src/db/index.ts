@@ -70,6 +70,19 @@ export async function initDb(): Promise<DbWrapper> {
   raw.run('PRAGMA journal_mode = WAL')
   raw.run('PRAGMA foreign_keys = ON')
 
+  function addColumnIfMissing(table: string, column: string, definition: string) {
+    const stmt = raw.prepare(`PRAGMA table_info(${table})`)
+    let found = false
+    while (stmt.step()) {
+      const row = stmt.getAsObject() as Record<string, unknown>
+      if (row.name === column) { found = true; break }
+    }
+    stmt.free()
+    if (!found) {
+      raw.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
   raw.exec(`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -200,6 +213,91 @@ export async function initDb(): Promise<DbWrapper> {
       raw.run('ALTER TABLE products ADD COLUMN catalog_in INTEGER NOT NULL DEFAULT 0')
     }
   }
+
+  // --- Migration: distributors, operators, order_number_seq, order_status_log ---
+  raw.exec(`
+    CREATE TABLE IF NOT EXISTS distributors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      code TEXT UNIQUE NOT NULL,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      site_display_name TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS operators (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS order_number_seq (
+      date_key TEXT NOT NULL,
+      distributor_id INTEGER NOT NULL REFERENCES distributors(id),
+      last_seq INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (date_key, distributor_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS order_status_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      field TEXT NOT NULL,
+      from_value TEXT,
+      to_value TEXT,
+      changed_by TEXT NOT NULL,
+      note TEXT,
+      changed_at TEXT NOT NULL
+    );
+  `)
+
+  // --- Migration: add columns to sites ---
+  addColumnIfMissing('sites', 'distributor_id', 'TEXT')
+  addColumnIfMissing('sites', 'webhook_secret', 'TEXT')
+  addColumnIfMissing('distributors', 'site_display_name', 'TEXT')
+
+  // --- Migration: add columns to orders ---
+  addColumnIfMissing('orders', 'distributor_id', 'INTEGER')
+  addColumnIfMissing('orders', 'source', "TEXT DEFAULT 'woo_webhook'")
+  addColumnIfMissing('orders', 'created_by_role', "TEXT DEFAULT 'system'")
+  addColumnIfMissing('orders', 'created_by_id', 'INTEGER')
+  addColumnIfMissing('orders', 'customer_city', 'TEXT')
+  addColumnIfMissing('orders', 'customer_address', 'TEXT')
+  addColumnIfMissing('orders', 'order_status', "TEXT DEFAULT 'unconfirmed'")
+  addColumnIfMissing('orders', 'delivery_status', "TEXT DEFAULT 'not_submitted'")
+  addColumnIfMissing('orders', 'item_summary', 'TEXT')
+  addColumnIfMissing('orders', 'expedited_fee', 'REAL DEFAULT 0')
+  addColumnIfMissing('orders', 'note', 'TEXT')
+  addColumnIfMissing('orders', 'woo_raw_data', 'TEXT')
+  addColumnIfMissing('orders', 'reviewed_by', 'INTEGER')
+  addColumnIfMissing('orders', 'settlement_amount', 'REAL')
+  addColumnIfMissing('orders', 'settlement_status', 'TEXT')
+  addColumnIfMissing('orders', 'settlement_note', 'TEXT')
+  addColumnIfMissing('orders', 'routed_supplier_id', 'INTEGER')
+  addColumnIfMissing('orders', 'routing_reason', 'TEXT')
+
+  // --- Migration: new indexes ---
+  raw.exec(`
+    CREATE INDEX IF NOT EXISTS idx_orders_distributor ON orders(distributor_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_order_status ON orders(order_status);
+    CREATE INDEX IF NOT EXISTS idx_orders_delivery_status ON orders(delivery_status);
+    CREATE INDEX IF NOT EXISTS idx_sites_distributor ON sites(distributor_id);
+    CREATE INDEX IF NOT EXISTS idx_order_status_log_order ON order_status_log(order_id);
+
+    CREATE TABLE IF NOT EXISTS product_favorites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      distributor_id INTEGER NOT NULL,
+      product_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(distributor_id, product_id)
+    );
+  `)
 
   const dir = path.dirname(DB_PATH)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })

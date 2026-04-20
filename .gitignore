@@ -19,6 +19,8 @@ downloads/woo-product-images/
 
 # 前端测试产物
 frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
 
 # 依赖与构建产物（独立仓库 / 部署时现装现编）
 node_modules/

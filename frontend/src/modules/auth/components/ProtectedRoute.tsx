@@ -12,3 +12,17 @@ export function ProtectedRoute({ children }: PropsWithChildren) {
 
   return <>{children}</>
 }
+
+export function OperatorRoute({ children }: PropsWithChildren) {
+  const user = getSessionUser()
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user.role !== 'operator') {
+    return <Navigate to="/orders" replace />
+  }
+
+  return <>{children}</>
+}

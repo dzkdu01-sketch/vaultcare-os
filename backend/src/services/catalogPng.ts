@@ -29,11 +29,6 @@ const RULE_LIGHT = 'rgba(60, 60, 67, 0.18)'
 const FONT_UI = '-apple-system, "SF Pro Text", "SF Pro Display", BlinkMacSystemFont, "Segoe UI", sans-serif'
 const FONT_MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 
-/** 杂志式分类：大字 + 留白（无背景块） */
-const CATEGORY_TITLE_SIZE = 28
-const CATEGORY_BAND_H = 96
-const GAP_AFTER_CATEGORY = 44
-
 /** 白卡内边距；①标题左对齐 ② 左 SKU·供应商 / 右 价格（两端对齐） */
 const CARD_PAD = 16
 const CARD_RADIUS = 14
@@ -211,20 +206,19 @@ function drawImagePlaceholder(ctx: SKRSContext2D, imgX: number, imgY: number, im
   ctx.textBaseline = 'alphabetic'
 }
 
-/** 与列表排序一致：同分类连续成块 */
-function groupByCategory(products: CatalogProductRow[]): Array<{ label: string; indices: number[] }> {
-  const blocks: Array<{ label: string; indices: number[] }> = []
-  for (let i = 0; i < products.length; i++) {
-    const raw = products[i].category && String(products[i].category).trim()
-    const label = raw && raw.length > 0 ? raw : 'Other'
-    const last = blocks[blocks.length - 1]
-    if (!last || last.label !== label) {
-      blocks.push({ label, indices: [i] })
-    } else {
-      last.indices.push(i)
-    }
+/** 连续网格：不再插入分类分章，直接按传入顺序填充。 */
+export function buildCatalogGridRows(
+  products: CatalogProductRow[],
+  cols = COLS,
+): Array<Array<CatalogProductRow | null>> {
+  const safeCols = Math.max(1, Math.floor(cols) || 1)
+  const rows: Array<Array<CatalogProductRow | null>> = []
+  for (let i = 0; i < products.length; i += safeCols) {
+    const row: Array<CatalogProductRow | null> = products.slice(i, i + safeCols)
+    while (row.length < safeCols) row.push(null)
+    rows.push(row)
   }
-  return blocks
+  return rows
 }
 
 async function fetchImageBuffer(url: string): Promise<Buffer | null> {
@@ -292,25 +286,6 @@ function fillRoundRect(ctx: SKRSContext2D, x: number, y: number, w: number, h: n
   ctx.fill()
 }
 
-/** 杂志式分章：左对齐大字 + 短装饰线，无背景方框 */
-function drawCategoryEditorial(ctx: SKRSContext2D, x: number, y: number, w: number, label: string) {
-  const show = label.length > 80 ? `${label.slice(0, 78)}…` : label
-  ctx.fillStyle = TEXT_PRIMARY
-  ctx.font = `600 ${CATEGORY_TITLE_SIZE}px ${FONT_UI}`
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'top'
-  ctx.fillText(show, x, y)
-  const tw = Math.min(ctx.measureText(show).width, w * 0.92)
-  const ruleY = y + CATEGORY_TITLE_SIZE + 12
-  ctx.strokeStyle = RULE_LIGHT
-  ctx.lineWidth = 1.5
-  ctx.beginPath()
-  ctx.moveTo(x, ruleY)
-  ctx.lineTo(x + Math.min(tw, 160), ruleY)
-  ctx.stroke()
-  ctx.textBaseline = 'alphabetic'
-}
-
 /** for him / for her 分册 PNG：浅灰底 + 白卡、四列栅格 */
 export async function buildCatalogBrochureImage(
   products: CatalogProductRow[],
@@ -334,13 +309,8 @@ export async function buildCatalogBrochureImage(
   const GRID_AFTER_TITLE = 36
   const gridTop = headerTop + titleBarH + GRID_AFTER_TITLE
 
-  const blocks = groupByCategory(products)
-  let bodyH = 0
-  for (const block of blocks) {
-    bodyH += CATEGORY_BAND_H + GAP_AFTER_CATEGORY
-    const rowsInBlock = Math.ceil(block.indices.length / COLS) || 1
-    bodyH += rowsInBlock * rowH
-  }
+  const gridRows = buildCatalogGridRows(products, COLS)
+  const bodyH = gridRows.length * rowH
   const height = gridTop + bodyH + PAD
 
   const canvas = createCanvas(WIDTH, height)
@@ -408,74 +378,64 @@ export async function buildCatalogBrochureImage(
       return null
     }
   })
+  const imageByProduct = new Map(products.map((p, i) => [p, decoded[i]] as const))
 
-  let yCursor = gridTop
-  for (const block of blocks) {
-    drawCategoryEditorial(ctx, PAD, yCursor, innerW, block.label)
-    yCursor += CATEGORY_BAND_H + GAP_AFTER_CATEGORY
+  for (let r = 0; r < gridRows.length; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = gridRows[r][c]
+      if (!p) continue
+      const img = imageByProduct.get(p) ?? null
+      const x0 = PAD + c * (colW + GAP)
+      const y0 = gridTop + r * rowH
 
-    const n = block.indices.length
-    const rowsInBlock = Math.ceil(n / COLS) || 1
-    for (let r = 0; r < rowsInBlock; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const slot = r * COLS + c
-        if (slot >= n) break
-        const pi = block.indices[slot]
-        const p = products[pi]
-        const img = decoded[pi]
-        const x0 = PAD + c * (colW + GAP)
-        const y0 = yCursor + r * rowH
+      const imgX = x0 + CARD_PAD
+      const imgY = y0 + CARD_PAD
+      /** 与第一行共用左边界；第二行为左 SKU·供应商 / 右价格（两端对齐） */
+      const textLeft = x0 + CARD_PAD
+      const textMaxW = colW - CARD_PAD * 2
 
-        const imgX = x0 + CARD_PAD
-        const imgY = y0 + CARD_PAD
-        /** 与第一行共用左边界；第二行为左 SKU·供应商 / 右价格（两端对齐） */
-        const textLeft = x0 + CARD_PAD
-        const textMaxW = colW - CARD_PAD * 2
+      ctx.save()
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.06)'
+      ctx.shadowBlur = 22
+      ctx.shadowOffsetY = 8
+      ctx.fillStyle = CARD_BG
+      fillRoundRect(ctx, x0, y0, colW, cardH, CARD_RADIUS)
+      ctx.restore()
 
+      ctx.fillStyle = PRODUCT_IMAGE_BG
+      fillRoundRect(ctx, imgX, imgY, imgSide, imgSide, IMG_BOX_RADIUS)
+
+      if (img) {
+        const iw = img.width
+        const ih = img.height
+        const scale = Math.min(imgSide / iw, imgSide / ih)
+        const dw = iw * scale
+        const dh = ih * scale
+        const dx = imgX + (imgSide - dw) / 2
+        const dy = imgY + (imgSide - dh) / 2
         ctx.save()
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.06)'
-        ctx.shadowBlur = 22
-        ctx.shadowOffsetY = 8
-        ctx.fillStyle = CARD_BG
-        fillRoundRect(ctx, x0, y0, colW, cardH, CARD_RADIUS)
+        roundRectPath(ctx, imgX, imgY, imgSide, imgSide, IMG_BOX_RADIUS)
+        ctx.clip()
+        ctx.drawImage(img, dx, dy, dw, dh)
         ctx.restore()
-
-        ctx.fillStyle = PRODUCT_IMAGE_BG
-        fillRoundRect(ctx, imgX, imgY, imgSide, imgSide, IMG_BOX_RADIUS)
-
-        if (img) {
-          const iw = img.width
-          const ih = img.height
-          const scale = Math.min(imgSide / iw, imgSide / ih)
-          const dw = iw * scale
-          const dh = ih * scale
-          const dx = imgX + (imgSide - dw) / 2
-          const dy = imgY + (imgSide - dh) / 2
-          ctx.save()
-          roundRectPath(ctx, imgX, imgY, imgSide, imgSide, IMG_BOX_RADIUS)
-          ctx.clip()
-          ctx.drawImage(img, dx, dy, dw, dh)
-          ctx.restore()
-        } else {
-          drawImagePlaceholder(ctx, imgX, imgY, imgSide)
-        }
-
-        let ty = imgY + imgSide + IMG_TEXT_GAP
-
-        ctx.font = `500 ${TITLE_FONT_PX}px ${FONT_UI}`
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'top'
-        const titleShow = truncateTextToWidth(ctx, (p.name || '—').trim() || '—', textMaxW)
-        ctx.fillStyle = TITLE_COLOR
-        ctx.fillText(titleShow, textLeft, ty)
-        ty += TITLE_LINE_H + TITLE_TO_META_GAP
-
-        drawMetaSkuSupplierPrice(ctx, textLeft, ty, p, textMaxW)
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'alphabetic'
+      } else {
+        drawImagePlaceholder(ctx, imgX, imgY, imgSide)
       }
+
+      let ty = imgY + imgSide + IMG_TEXT_GAP
+
+      ctx.font = `500 ${TITLE_FONT_PX}px ${FONT_UI}`
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      const titleShow = truncateTextToWidth(ctx, (p.name || '—').trim() || '—', textMaxW)
+      ctx.fillStyle = TITLE_COLOR
+      ctx.fillText(titleShow, textLeft, ty)
+      ty += TITLE_LINE_H + TITLE_TO_META_GAP
+
+      drawMetaSkuSupplierPrice(ctx, textLeft, ty, p, textMaxW)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
     }
-    yCursor += rowsInBlock * rowH
   }
 
   const buffer = canvas.toBuffer('image/png')

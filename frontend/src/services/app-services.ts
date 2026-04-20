@@ -5,6 +5,7 @@ import type {
   Order, PaginatedList, SyncResult, PullResult,
   Supplier, SupplierInput, ProductSupplierMapping, ProductSupplierInput,
   ImportedSupplierProduct, SupplierProductImportResult,
+  Distributor, DistributorInput, LoginResponse, ExtendedOrder, OrderInput, OrderListResponse, AuthUser,
 } from './types'
 
 export const siteApi = {
@@ -82,19 +83,33 @@ export const productApi = {
 }
 
 export const orderApi = {
-  list: (params?: { site_id?: string; status?: string; keyword?: string; page?: number; page_size?: number }) => {
+  list: (params?: {
+    site_id?: string; status?: string; keyword?: string;
+    page?: number; page_size?: number;
+    order_status?: string; delivery_status?: string; distributor_id?: string
+  }) => {
     const query = new URLSearchParams()
     if (params?.site_id) query.set('site_id', params.site_id)
     if (params?.status) query.set('status', params.status)
     if (params?.keyword) query.set('keyword', params.keyword)
     if (params?.page) query.set('page', String(params.page))
     if (params?.page_size) query.set('page_size', String(params.page_size))
+    if (params?.order_status) query.set('order_status', params.order_status)
+    if (params?.delivery_status) query.set('delivery_status', params.delivery_status)
+    if (params?.distributor_id) query.set('distributor_id', params.distributor_id)
     const qs = query.toString()
-    return apiClient.get<PaginatedList<Order> & { status_counts: Record<string, number> }>(`/orders${qs ? `?${qs}` : ''}`)
+    return apiClient.get<OrderListResponse>(`/orders${qs ? `?${qs}` : ''}`)
   },
-  getById: (id: string) => apiClient.get<Order>(`/orders/${id}`),
+  getById: (id: string | number) => apiClient.get<ExtendedOrder>(`/orders/${id}`),
+  create: (input: OrderInput) => apiClient.post<ExtendedOrder>('/orders', input),
+  update: (id: string | number, input: Partial<OrderInput>) => apiClient.put<ExtendedOrder>(`/orders/${id}`, input),
+  updateOrderStatus: (id: string | number, order_status: string) =>
+    apiClient.put(`/orders/${id}/order-status`, { order_status }),
+  updateDeliveryStatus: (id: string | number, delivery_status: string, note?: string) =>
+    apiClient.put(`/orders/${id}/delivery-status`, { delivery_status, note }),
   pull: () => apiClient.post<PullResult>('/orders/pull'),
-  updateStatus: (id: string, status: string) => apiClient.put(`/orders/${id}/status`, { status }),
+  updateWooStatus: (id: string | number, status: string) =>
+    apiClient.put(`/orders/${id}/woo-status`, { status }),
 }
 
 export const supplierApi = {
@@ -131,4 +146,50 @@ export const supplierApi = {
 export const settingsApi = {
   get: () => apiClient.get<Record<string, string>>('/settings'),
   update: (key: string, value: string) => apiClient.put<{ key: string; value: string }>(`/settings/${key}`, { value }),
+}
+
+export const authApi = {
+  login: (username: string, password: string) =>
+    apiClient.post<LoginResponse>('/auth/login', { username, password }),
+  me: () => apiClient.get<AuthUser>('/auth/me'),
+  initAdmin: (data: { username: string; password: string; name: string }) =>
+    apiClient.post<LoginResponse>('/auth/init-admin', data),
+}
+
+export const distributorApi = {
+  list: () => apiClient.get<Distributor[]>('/distributors'),
+  getById: (id: string | number) => apiClient.get<Distributor>(`/distributors/${id}`),
+  create: (input: DistributorInput) => apiClient.post<Distributor>('/distributors', input),
+  update: (id: string | number, input: Partial<DistributorInput & { status: string }>) =>
+    apiClient.put<Distributor>(`/distributors/${id}`, input),
+  remove: (id: string | number) => apiClient.del(`/distributors/${id}`),
+  bindSites: (id: string | number, site_ids: string[]) =>
+    apiClient.put<{ sites: any[] }>(`/distributors/${id}/sites`, { site_ids }),
+  myOrganization: () => apiClient.get<Distributor>('/distributors/my-organization'),
+  updateMyOrganization: (input: { site_display_name?: string }) =>
+    apiClient.put<Distributor>('/distributors/my-organization', input),
+  mySites: () => apiClient.get<any[]>('/distributors/my-sites'),
+  createMySite: (input: { name: string; url: string; consumer_key: string; consumer_secret: string }) =>
+    apiClient.post<any>('/distributors/my-sites', input),
+  updateMySite: (
+    siteId: string,
+    input: Partial<{ name: string; url: string; consumer_key: string; consumer_secret: string; status: string }>,
+  ) => apiClient.put<any>(`/distributors/my-sites/${siteId}`, input),
+  testMySite: (siteId: string) =>
+    apiClient.post<{ connected: boolean; error?: string }>(`/distributors/my-sites/${siteId}/test`),
+  deleteMySite: (siteId: string) => apiClient.del(`/distributors/my-sites/${siteId}`),
+}
+
+export const operatorApi = {
+  list: () => apiClient.get<any[]>('/operators'),
+  create: (input: { name: string; username: string; password: string }) =>
+    apiClient.post<any>('/operators', input),
+  update: (id: string | number, input: any) => apiClient.put<any>(`/operators/${id}`, input),
+  remove: (id: string | number) => apiClient.del(`/operators/${id}`),
+}
+
+export const favoriteApi = {
+  list: () => apiClient.get<any[]>('/favorites'),
+  add: (product_id: string) => apiClient.post('/favorites', { product_id }),
+  remove: (product_id: string) => apiClient.del(`/favorites/${product_id}`),
 }

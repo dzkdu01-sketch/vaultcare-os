@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "node ./node_modules/typescript/lib/tsc.js -b && node ./node_modules/vite/bin/vite.js build",
-    "test": "vitest --config vite.config.ts"
+    "test": "vitest --config vite.config.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -27,6 +30,7 @@
     "@types/node": "^24.4.0",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
+    "@playwright/test": "^1.51.0",
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^26.0.0",
     "typescript": "^5.7.3",

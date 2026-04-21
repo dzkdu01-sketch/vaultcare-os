@@ -20,7 +20,7 @@
 | `scripts/sync-db-to-vps.ps1` | 仅上传 `vaultcare.db`（手动分步时用） |
 | `scripts/purge-orders-on-vps.ps1` | **仅 Windows 本机**：SSH 调远端执行清空（见下，勿把 `.ps1` 拷到 Linux 里执行） |
 | `scripts/purge-orders-on-vps.sh` | **在 VPS 的 bash 里执行**：`bash /var/www/vault-os1.1/scripts/purge-orders-on-vps.sh`（网页终端、SSH 均可） |
-| `backend` `npm run purge-orders` | 在**已停 API** 的机器上对 `vaultcare.db` 执行同上清空（慎用） |
+| `backend` `npm run purge-orders`（内部为 `node scripts/purge-all-orders.mjs`） | **不依赖 tsx**；在**已停 API** 的机器上对 `vaultcare.db` 清空订单（慎用） |
 
 ---
 

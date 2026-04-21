@@ -25,22 +25,15 @@ function Invoke-Ssh([string] $RemoteCmd) {
   if ($LASTEXITCODE -ne 0) { throw "ssh failed: $RemoteCmd" }
 }
 
-$remoteCmd = @"
-set -e
-cd '$RemoteRoot/backend'
-pm2 stop $Pm2Name
-npx tsx scripts/purge-all-orders.ts
-chmod 644 '$RemoteRoot/backend/data/vaultcare.db' 2>/dev/null || true
-pm2 restart $Pm2Name
-pm2 save
-echo Done.
-"@
+# 单行 bash；用 node 执行 .mjs，不依赖 tsx/npx
+$backend = "$RemoteRoot/backend"
+$remoteBash = "set -e; cd '$backend' && pm2 stop $Pm2Name && node scripts/purge-all-orders.mjs && chmod 644 '$backend/data/vaultcare.db' && pm2 restart $Pm2Name && pm2 save && echo Done"
 
 Write-Host ""
-Write-Host "将在 $VpsHost 上清空 orders（请先确认代码已部署含 scripts/purge-all-orders.ts）。" -ForegroundColor Yellow
+Write-Host "Remote: $VpsHost -> purge orders (node, no tsx). Git pull first if missing purge-all-orders.mjs" -ForegroundColor Yellow
 Write-Host ""
 
-Invoke-Ssh $remoteCmd
+Invoke-Ssh $remoteBash
 
 Write-Host ""
 Write-Host "远程清空订单已完成。" -ForegroundColor Green

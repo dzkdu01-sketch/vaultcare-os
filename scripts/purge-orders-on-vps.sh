@@ -14,8 +14,8 @@ ROOT="${VAULT_OS11_ROOT:-/var/www/vault-os1.1}"
 PM2_NAME="${PM2_NAME:-vault-os11-api}"
 BACKEND="$ROOT/backend"
 
-if [[ ! -f "$BACKEND/scripts/purge-all-orders.ts" ]]; then
-  echo "未找到 $BACKEND/scripts/purge-all-orders.ts，请先 git pull 部署最新代码。"
+if [[ ! -f "$BACKEND/scripts/purge-all-orders.mjs" ]]; then
+  echo "未找到 $BACKEND/scripts/purge-all-orders.mjs，请先 git pull 部署最新代码。"
   exit 1
 fi
 
@@ -23,8 +23,8 @@ cd "$BACKEND"
 echo "==> pm2 stop $PM2_NAME"
 pm2 stop "$PM2_NAME"
 
-echo "==> 清空订单（purge-all-orders）"
-npx tsx scripts/purge-all-orders.ts
+echo "==> 清空订单（node scripts/purge-all-orders.mjs）"
+node scripts/purge-all-orders.mjs
 
 if [[ -f "$BACKEND/data/vaultcare.db" ]]; then
   chmod 644 "$BACKEND/data/vaultcare.db"

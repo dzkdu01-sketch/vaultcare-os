@@ -1,8 +1,9 @@
 /**
  * 清空 SQLite 中全部订单及订单状态流水，并重置 order_number_seq。
- * 使用前务必停掉占用 vaultcare.db 的 API 进程（如 pm2 stop），避免并发写库。
+ * 使用 plain Node，不依赖 tsx（VPS 生产环境常见无 tsx）。
+ * 使用前务必停掉占用 vaultcare.db 的 API（如 pm2 stop）。
  *
- *   cd backend && npx tsx scripts/purge-all-orders.ts
+ *   cd backend && node scripts/purge-all-orders.mjs
  */
 import initSqlJs from 'sql.js'
 import fs from 'fs'
@@ -14,7 +15,7 @@ const DB_PATH = path.join(__dirname, '..', 'data', 'vaultcare.db')
 
 async function main() {
   if (!fs.existsSync(DB_PATH)) {
-    console.error('数据库不存在:', DB_PATH)
+    console.error('DB not found:', DB_PATH)
     process.exit(1)
   }
 
@@ -33,7 +34,7 @@ async function main() {
   fs.writeFileSync(DB_PATH, Buffer.from(out))
   db.close()
 
-  console.log(`已删除 ${before} 条订单，并清空 order_number_seq。数据库: ${DB_PATH}`)
+  console.log(`Purged ${before} orders, cleared order_number_seq. DB: ${DB_PATH}`)
 }
 
 main().catch((e) => {

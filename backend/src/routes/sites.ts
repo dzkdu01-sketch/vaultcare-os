@@ -97,16 +97,7 @@ siteRouter.delete('/:id', (req: Request, res: Response) => {
   const site = db.get('SELECT * FROM sites WHERE id = ?', [req.params.id])
   if (!site) return respondError(res, '站点不存在', 404)
 
-  const orderCount = db.get('SELECT COUNT(*) as count FROM orders WHERE site_id = ?', [req.params.id]) as any
-  if (orderCount?.count > 0) {
-    return respondError(res, `该站点下有 ${orderCount.count} 个订单，无法删除。请先处理关联订单。`)
-  }
-
-  const syncCount = db.get('SELECT COUNT(*) as count FROM product_sync WHERE site_id = ?', [req.params.id]) as any
-  if (syncCount?.count > 0) {
-    return respondError(res, `该站点有 ${syncCount.count} 个产品同步记录，无法删除。请先清除同步记录。`)
-  }
-
+  // 库表已对 orders / product_sync 使用 ON DELETE CASCADE；不再校验订单与同步条数
   db.run('DELETE FROM sites WHERE id = ?', [req.params.id])
   respond(res, { deleted: true })
 })

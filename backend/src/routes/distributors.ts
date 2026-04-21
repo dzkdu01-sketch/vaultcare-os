@@ -171,14 +171,7 @@ distributorRouter.delete('/my-sites/:siteId', requireAuth, async (req, res) => {
     if (!site) {
       return res.status(404).json({ code: 404, message: '站点不存在或不属于您' })
     }
-    const orderCount = db.get('SELECT COUNT(*) as count FROM orders WHERE site_id = ?', [req.params.siteId]) as any
-    if (orderCount?.count > 0) {
-      return res.status(400).json({ code: 400, message: `该站点下有 ${orderCount.count} 个订单，无法删除` })
-    }
-    const syncCount = db.get('SELECT COUNT(*) as count FROM product_sync WHERE site_id = ?', [req.params.siteId]) as any
-    if (syncCount?.count > 0) {
-      return res.status(400).json({ code: 400, message: `该站点有 ${syncCount.count} 个产品同步记录，无法删除。请先清除同步记录。` })
-    }
+    // 与操作员删站点一致：依赖 FK CASCADE，不因订单/同步记录阻塞删除
     db.run('DELETE FROM sites WHERE id = ?', [req.params.siteId])
     res.json({ code: 200, data: { deleted: true } })
   } catch (err: any) {

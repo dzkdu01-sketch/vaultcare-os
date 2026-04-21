@@ -1,7 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { Router, Request, Response } from 'express'
+import multer from 'multer'
 import { v4 as uuidv4 } from 'uuid'
+import { requireAuth, requireRole } from '../middleware/auth.js'
+import { buildProductCsvTemplate, runProductCsvImport } from '../services/productCsvImport.js'
 import {
   CATALOG_TAG_HER,
   CATALOG_TAG_HIM,
@@ -15,6 +18,8 @@ import { buildCatalogBrochureImage } from '../services/catalogPng.js'
 import { createProduct, updateProduct, findProductBySku, fetchAllProducts, WooSite } from '../services/woo-client.js'
 
 export const productRouter = Router()
+
+const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } })
 
 // #region agent log
 const DEBUG_SESSION = '3e75d0'
@@ -192,6 +197,43 @@ productRouter.get('/items', (req: Request, res: Response) => {
     pagination: { page: pageNum, page_size: pageSize, total, total_pages: Math.ceil(total / pageSize) },
   })
 })
+
+// GET /items/csv-template — 须在 /items/:id 之前
+productRouter.get('/items/csv-template', requireAuth, requireRole('operator'), (_req: Request, res: Response) => {
+  const csv = buildProductCsvTemplate()
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', 'attachment; filename="products-import-template.csv"')
+  res.send(csv)
+})
+
+// POST /items/import-csv — validate_only=1 仅校验不写库
+productRouter.post(
+  '/items/import-csv',
+  requireAuth,
+  requireRole('operator'),
+  csvUpload.single('file'),
+  (req: Request, res: Response) => {
+    const file = req.file
+    if (!file?.buffer) {
+      return respondError(res, '请使用 multipart 上传 file 字段（CSV）', 400)
+    }
+    const q = String(req.query.validate_only || '')
+    const validateOnly = q === '1' || q.toLowerCase() === 'true'
+    let text: string
+    try {
+      text = file.buffer.toString('utf8')
+    } catch {
+      return respondError(res, '无法读取文件', 400)
+    }
+    try {
+      const result = runProductCsvImport(text, validateOnly)
+      respond(res, result)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '导入失败'
+      respondError(res, msg, 500)
+    }
+  },
+)
 
 // PATCH /items/catalog-batch — 批量设置进图册（须已有 for him / for her 之一）
 productRouter.patch('/items/catalog-batch', (req: Request, res: Response) => {

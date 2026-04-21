@@ -74,6 +74,9 @@ export function ProductListPage() {
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null)
   const syncMenuRef = useRef<HTMLDivElement>(null)
   const importMenuRef = useRef<HTMLDivElement>(null)
+  const csvInputRef = useRef<HTMLInputElement>(null)
+  const [csvWorking, setCsvWorking] = useState(false)
+  const [csvValidateOnly, setCsvValidateOnly] = useState(true)
 
   const parseProductTags = (p: Product): string[] => {
     try {
@@ -465,6 +468,46 @@ export function ProductListPage() {
     }
   }
 
+  const handleDownloadCsvTemplate = async () => {
+    try {
+      const blob = await productApi.downloadCsvTemplate()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'products-import-template.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '下载失败'
+      alert(msg)
+    }
+  }
+
+  const handleCsvFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setCsvWorking(true)
+    try {
+      const r = await productApi.importCsv(f, csvValidateOnly)
+      const head = csvValidateOnly ? '[仅校验]' : '[已写入]'
+      let msg = `${head} 数据行 ${r.total_data_rows}：将新建/已新建 ${r.created}，将更新/已更新 ${r.updated}，失败 ${r.failed.length}`
+      if (r.failed.length > 0) {
+        const lines = r.failed.slice(0, 20).map(x => `第 ${x.row} 行 ${x.sku || '(无SKU)'}：${x.error}`)
+        msg += `\n\n${lines.join('\n')}`
+        if (r.failed.length > 20) msg += `\n… 另有 ${r.failed.length - 20} 条`
+      }
+      alert(msg)
+      if (!csvValidateOnly && (r.created > 0 || r.updated > 0)) {
+        loadProducts(pagination.page)
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : '导入失败')
+    } finally {
+      setCsvWorking(false)
+    }
+  }
+
   const handleBatchCatalog = async (catalog_in: 0 | 1) => {
     if (selectedIds.size === 0) return
     setBatchUpdating(true)
@@ -639,6 +682,44 @@ export function ProductListPage() {
                 </div>
               </div>
             )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50/80">
+            <span className="text-xs text-slate-500 px-1">CSV</span>
+            <button
+              type="button"
+              onClick={() => void handleDownloadCsvTemplate()}
+              disabled={csvWorking || selectionBusy}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-md bg-white hover:bg-slate-50 disabled:opacity-50"
+              title="下载 UTF-8 模板（含全部列）"
+            >
+              下载模板
+            </button>
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={csvValidateOnly}
+                onChange={e => setCsvValidateOnly(e.target.checked)}
+                disabled={csvWorking}
+                className="rounded border-slate-300"
+              />
+              仅校验
+            </label>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={e => void handleCsvFileChange(e)}
+            />
+            <button
+              type="button"
+              onClick={() => csvInputRef.current?.click()}
+              disabled={csvWorking || selectionBusy}
+              className="px-3 py-1.5 text-sm border border-primary-border text-primary rounded-md hover:bg-primary-muted disabled:opacity-50"
+              title="以 SKU 匹配：无则新建，有则更新（不修改 SKU）；空单元格表示不修改该字段（新建除外 name 必填）"
+            >
+              {csvWorking ? '处理中…' : '上传 CSV'}
+            </button>
           </div>
           <button
             onClick={() => navigate('/products/new')}

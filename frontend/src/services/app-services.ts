@@ -1,7 +1,7 @@
 import { apiClient } from './api-client'
 import type {
   Site, SiteInput,
-  Product, ProductInput, ProductDetail,
+  Product, ProductInput, ProductDetail, ProductCsvImportResult,
   Order, PaginatedList, SyncResult, PullResult,
   Supplier, SupplierInput, ProductSupplierMapping, ProductSupplierInput,
   ImportedSupplierProduct, SupplierProductImportResult,
@@ -80,6 +80,14 @@ export const productApi = {
       '/product/items/catalog-batch',
       { ids, catalog_in },
     ),
+  /** UTF-8 BOM 模板，列与库表一致；以 sku 匹配新建/更新（不可改 sku） */
+  downloadCsvTemplate: () => apiClient.getBlob('/product/items/csv-template'),
+  importCsv: (file: File, validateOnly: boolean) => {
+    const form = new FormData()
+    form.append('file', file)
+    const qs = validateOnly ? '?validate_only=1' : ''
+    return apiClient.post<ProductCsvImportResult>(`/product/items/import-csv${qs}`, form)
+  },
 }
 
 export const orderApi = {

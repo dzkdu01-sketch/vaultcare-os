@@ -74,6 +74,14 @@ export type ProductDetail = Product & {
   sync: ProductSync[]
 }
 
+export type ProductCsvImportResult = {
+  validate_only: boolean
+  total_data_rows: number
+  created: number
+  updated: number
+  failed: Array<{ row: number; sku: string; error: string }>
+}
+
 // === 订单 ===
 export type WooOrderStatus =
   | 'pending'

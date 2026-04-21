@@ -15,7 +15,7 @@ const WHATSAPP_E164 = import.meta.env.VITE_WHATSAPP_E164 ?? '971501234567'
 
 function catalogGeneratedDateLabel(): string {
   const s = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
-  return `图册生成 · ${s}`
+  return `Generated · ${s}`
 }
 
 function parseFirstImage(p: Product): string {
@@ -241,7 +241,6 @@ function LookbookProductCard({
 }) {
   const img = parseFirstImage(product)
   const { num, currency } = priceParts(product)
-  const supFull = (product.supplier_codes || '').trim().replace(/\s+/g, ' ')
 
   return (
     <button
@@ -267,20 +266,12 @@ function LookbookProductCard({
           )}
         </div>
         <div className="mt-4 min-w-0">
-          <p className="line-clamp-2 text-[13px] font-medium leading-[21px] text-[#3D3D41]">
+          <p className="line-clamp-2 text-[22px] font-medium leading-[28px] text-[#3D3D41]">
             {(product.name || '—').trim() || '—'}
           </p>
           <div className="mt-3 flex min-w-0 items-baseline justify-between gap-2">
-            <p className="min-w-0 flex-1 truncate text-sm">
-              <span className="font-mono font-bold text-[#1D1D1F]">
-                {(product.sku || '—').toUpperCase()}
-              </span>
-              {supFull ? (
-                <>
-                  <span className="font-sans text-[13px] font-normal text-[#6E6E73]"> · </span>
-                  <span className="font-mono text-xs font-normal text-[#AEAEB2]">{supFull}</span>
-                </>
-              ) : null}
+            <p className="min-w-0 flex-1 truncate font-mono text-2xl font-bold text-[#1D1D1F]">
+              {(product.sku || '—').toUpperCase()}
             </p>
             <span className="shrink-0 whitespace-nowrap tabular-nums">
               <span className="text-2xl font-semibold text-[#FF6700]">{num}</span>

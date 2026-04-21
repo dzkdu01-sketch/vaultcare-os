@@ -29,25 +29,20 @@ const RULE_LIGHT = 'rgba(60, 60, 67, 0.18)'
 const FONT_UI = '-apple-system, "SF Pro Text", "SF Pro Display", BlinkMacSystemFont, "Segoe UI", sans-serif'
 const FONT_MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 
-/** 白卡内边距；①标题左对齐 ② 左 SKU·供应商 / 右 价格（两端对齐） */
+/** 白卡内边距；①标题左对齐 ② 左 SKU / 右 价格（两端对齐） */
 const CARD_PAD = 16
 const CARD_RADIUS = 14
 const IMG_TEXT_GAP = 16
-/** 第一行：标题略大、中性灰，单行截断 */
-const TITLE_FONT_PX = 13
-const TITLE_LINE_H = 21
+/** 第一行：比 SKU（24px）小 2px，中性灰，单行截断 */
+const TITLE_FONT_PX = 22
+const TITLE_LINE_H = 28
 const TITLE_COLOR = '#3D3D41'
 const TITLE_TO_META_GAP = 12
-/** 第二行：左簇 + 右价；SKU/价数字 24px；供应商弱化 */
+/** 第二行：左 SKU + 右价；SKU/价数字 24px */
 const META_LINE_H = 44
 const SKU_META_PX = 24
-const SUPPLIER_META_PX = 12
-/** SKU 与供应商之间的间隔符（比横杠更轻） */
-const DOT_SEP = ' · '
-const DOT_SEP_PX = 13
 const PRICE_NUM_PX = 24
 const PRICE_CUR_PX = 24
-const SUPPLIER_MUTED = '#AEAEB2'
 /** 左侧信息与价格之间的最小间距 */
 const META_GAP_SKU_PRICE = 14
 const TEXT_BLOCK_H = IMG_TEXT_GAP + TITLE_LINE_H + TITLE_TO_META_GAP + META_LINE_H + 12
@@ -68,7 +63,7 @@ export type CatalogProductRow = {
   regular_price: number
   images: string | unknown[] | null
   category?: string | null
-  /** 关联供应商编码，逗号分隔；图册上弱化展示 */
+  /** 关联供应商编码（导出 PNG 不再绘制，保留字段供后台） */
   supplier_codes?: string | null
 }
 
@@ -97,10 +92,10 @@ function priceParts(p: { sale_price: number; regular_price: number }): { num: st
   return { num: formatPriceNum(v), currency: 'AED' }
 }
 
-/** 图册导出时刻（迪拜时区日期，便于业务对齐本地运营日） */
+/** 图册导出时刻（迪拜时区）；仅用 ASCII，避免无中文字体时 Canvas 出现方框 */
 function catalogGeneratedDateLabel(): string {
   const s = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
-  return `图册生成 · ${s}`
+  return `Generated · ${s}`
 }
 
 function measurePriceBlockWidth(ctx: SKRSContext2D, num: string, cur: string): number {
@@ -111,20 +106,13 @@ function measurePriceBlockWidth(ctx: SKRSContext2D, num: string, cur: string): n
   return w
 }
 
-function measureLeftClusterWidth(ctx: SKRSContext2D, sku: string, supplier: string | null): number {
+function measureSkuWidth(ctx: SKRSContext2D, sku: string): number {
   ctx.font = `700 ${SKU_META_PX}px ${FONT_MONO}`
-  let w = ctx.measureText(sku).width
-  if (supplier) {
-    ctx.font = `400 ${DOT_SEP_PX}px ${FONT_UI}`
-    w += ctx.measureText(DOT_SEP).width
-    ctx.font = `400 ${SUPPLIER_META_PX}px ${FONT_MONO}`
-    w += ctx.measureText(supplier).width
-  }
-  return w
+  return ctx.measureText(sku).width
 }
 
 /**
- * 第二行排版：与标题同一左边界；**左侧** SKU · 供应商（弱化），**右侧** 现价 AED（主价橙），两端对齐。
+ * 第二行：左侧 SKU，右侧价格；不展示供应商编码。
  */
 function drawMetaSkuSupplierPrice(
   ctx: SKRSContext2D,
@@ -137,53 +125,21 @@ function drawMetaSkuSupplierPrice(
   const priceW = measurePriceBlockWidth(ctx, num, cur)
   const leftBudget = Math.max(48, maxW - priceW - META_GAP_SKU_PRICE)
 
-  const supFull = (p.supplier_codes || '').trim().replace(/\s+/g, ' ')
   const rawSku = (p.sku || '—').toUpperCase()
   let sku = rawSku
-  let supplier: string | null = supFull.length > 0 ? supFull : null
-
-  const fitsLeft = (sk: string, su: string | null) => measureLeftClusterWidth(ctx, sk, su) <= leftBudget
-
-  if (!fitsLeft(sku, supplier)) {
-    if (supFull.length > 0) {
-      for (let len = supFull.length; len >= 0; len--) {
-        const cand = len === 0 ? null : len < supFull.length ? `${supFull.slice(0, len)}…` : supFull
-        if (fitsLeft(sku, cand)) {
-          supplier = cand
-          break
-        }
-      }
-    }
-    if (!fitsLeft(sku, supplier)) {
-      for (let len = rawSku.length; len >= 1; len--) {
-        const cand = len < rawSku.length ? `${rawSku.slice(0, len)}…` : rawSku
-        if (fitsLeft(cand, supplier)) {
-          sku = cand
-          break
-        }
-      }
-    }
+  ctx.font = `700 ${SKU_META_PX}px ${FONT_MONO}`
+  if (measureSkuWidth(ctx, sku) > leftBudget) {
+    sku = truncateTextToWidth(ctx, sku, leftBudget)
   }
 
   const cy = Math.round(ty + META_LINE_H / 2)
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
 
-  let x = Math.round(textLeft)
+  const x = Math.round(textLeft)
   ctx.fillStyle = TEXT_PRIMARY
   ctx.font = `700 ${SKU_META_PX}px ${FONT_MONO}`
   ctx.fillText(sku, x, cy)
-  x += ctx.measureText(sku).width
-
-  if (supplier) {
-    ctx.fillStyle = TEXT_SECONDARY
-    ctx.font = `400 ${DOT_SEP_PX}px ${FONT_UI}`
-    ctx.fillText(DOT_SEP, x, cy)
-    x += ctx.measureText(DOT_SEP).width
-    ctx.fillStyle = SUPPLIER_MUTED
-    ctx.font = `400 ${SUPPLIER_META_PX}px ${FONT_MONO}`
-    ctx.fillText(supplier, x, cy)
-  }
 
   const priceX = Math.round(textLeft + maxW - priceW)
   ctx.fillStyle = PRICE_ACCENT
@@ -201,7 +157,7 @@ function drawImagePlaceholder(ctx: SKRSContext2D, imgX: number, imgY: number, im
   ctx.font = `500 13px ${FONT_UI}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText('暂无图片', imgX + imgSide / 2, imgY + imgSide / 2)
+  ctx.fillText('No image', imgX + imgSide / 2, imgY + imgSide / 2)
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
 }
@@ -390,7 +346,7 @@ export async function buildCatalogBrochureImage(
 
       const imgX = x0 + CARD_PAD
       const imgY = y0 + CARD_PAD
-      /** 与第一行共用左边界；第二行为左 SKU·供应商 / 右价格（两端对齐） */
+      /** 与第一行共用左边界；第二行为左 SKU / 右价格（两端对齐） */
       const textLeft = x0 + CARD_PAD
       const textMaxW = colW - CARD_PAD * 2
 

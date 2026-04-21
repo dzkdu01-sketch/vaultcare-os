@@ -28,7 +28,13 @@ function parseSkus(lineItemsRaw: any): string {
 function formatDate(d: string | undefined): string {
   if (!d) return '-'
   const dt = new Date(d)
-  return `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`
+  if (Number.isNaN(dt.getTime())) return '-'
+  const y = dt.getFullYear()
+  const m = String(dt.getMonth() + 1).padStart(2, '0')
+  const day = String(dt.getDate()).padStart(2, '0')
+  const h = String(dt.getHours()).padStart(2, '0')
+  const min = String(dt.getMinutes()).padStart(2, '0')
+  return `${y}/${m}/${day} ${h}:${min}`
 }
 
 function sourceLabel(source: string | undefined): string {
@@ -201,7 +207,7 @@ export function OrderListPage() {
             DELIVERY_STATUS_LABELS[o.delivery_status || '']?.label || '',
             `${o.currency || 'AED'} ${o.total}`,
             sourceLabel(o.source),
-            o.date_created ? new Date(o.date_created).toLocaleDateString() : '',
+            formatDate(o.date_created),
           ]
         : [
             o.order_number,
@@ -212,7 +218,7 @@ export function OrderListPage() {
             `${o.currency || 'AED'} ${o.total}`,
             o.site_name || '-',
             sourceLabel(o.source),
-            o.date_created ? new Date(o.date_created).toLocaleDateString() : '',
+            formatDate(o.date_created),
           ],
     )
     const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')

@@ -1,4 +1,6 @@
 # 在 VPS 上停止 API → 执行 backend 清空订单脚本 → 重启 API
+# 仅 Windows PowerShell 使用。若你已在 Linux 网页终端里登录 VPS，请用：
+#   bash /var/www/vault-os1.1/scripts/purge-orders-on-vps.sh
 # 需 OpenSSH、VPS root（或密钥）。默认与 deploy-full-to-vps.ps1 一致。
 #
 #   .\scripts\purge-orders-on-vps.ps1

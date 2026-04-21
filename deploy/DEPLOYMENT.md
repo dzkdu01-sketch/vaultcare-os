@@ -18,8 +18,9 @@
 | `deploy/update-server.sh` | VPS 上执行：`git pull` + 前后端构建 + `pm2 restart` |
 | `scripts/deploy-full-to-vps.ps1` | **本机一键**：停 PM2 → 上传 DB → 上传本脚本并执行 `update-server.sh` |
 | `scripts/sync-db-to-vps.ps1` | 仅上传 `vaultcare.db`（手动分步时用） |
-| `scripts/purge-orders-on-vps.ps1` | 远端 **停 PM2** → `backend` 执行 `npx tsx scripts/purge-all-orders.ts` 清空全部订单与 `order_number_seq` → **重启 PM2**（需已部署含该脚本） |
-| `backend` `npm run purge-orders` | 本机或对已停 API 的 `vaultcare.db` 执行同上清空（慎用） |
+| `scripts/purge-orders-on-vps.ps1` | **仅 Windows 本机**：SSH 调远端执行清空（见下，勿把 `.ps1` 拷到 Linux 里执行） |
+| `scripts/purge-orders-on-vps.sh` | **在 VPS 的 bash 里执行**：`bash /var/www/vault-os1.1/scripts/purge-orders-on-vps.sh`（网页终端、SSH 均可） |
+| `backend` `npm run purge-orders` | 在**已停 API** 的机器上对 `vaultcare.db` 执行同上清空（慎用） |
 
 ---
 

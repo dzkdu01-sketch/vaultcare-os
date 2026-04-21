@@ -63,7 +63,7 @@ export function OrderListPage() {
   const [orders, setOrders] = useState<ExtendedOrder[]>([])
   const [sites, setSites] = useState<Site[]>([])
   const [distributors, setDistributors] = useState<Distributor[]>([])
-  const [pagination, setPagination] = useState<Pagination>({ page: 1, page_size: 20, total: 0, total_pages: 0 })
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, page_size: 50, total: 0, total_pages: 0 })
   const [orderStatusCounts, setOrderStatusCounts] = useState<Record<string, number>>({})
   const [deliveryStatusCounts, setDeliveryStatusCounts] = useState<Record<string, number>>({})
   const [filters, setFilters] = useState({
@@ -83,7 +83,7 @@ export function OrderListPage() {
         site_id: filters.site_id || undefined,
         keyword: filters.keyword || undefined,
         page,
-        page_size: 20,
+        page_size: 50,
         order_status: filters.order_status || undefined,
         delivery_status: filters.delivery_status || undefined,
         distributor_id: filters.distributor_id || undefined,

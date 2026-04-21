@@ -266,7 +266,7 @@ function LookbookProductCard({
           )}
         </div>
         <div className="mt-4 min-w-0">
-          <p className="line-clamp-2 text-[22px] font-medium leading-[28px] text-[#3D3D41]">
+          <p className="line-clamp-2 min-h-[56px] text-[22px] font-medium leading-[28px] text-[#3D3D41]">
             {(product.name || '—').trim() || '—'}
           </p>
           <div className="mt-3 flex min-w-0 items-baseline justify-between gap-2">

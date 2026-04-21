@@ -33,9 +33,11 @@ const FONT_MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 const CARD_PAD = 16
 const CARD_RADIUS = 14
 const IMG_TEXT_GAP = 16
-/** 第一行：比 SKU（24px）小 2px，中性灰，单行截断 */
+/** 商品标题：两行，22px 行高 28px；与网页 /lookbook 一致 */
 const TITLE_FONT_PX = 22
 const TITLE_LINE_H = 28
+const TITLE_MAX_LINES = 2
+const TITLE_BLOCK_H = TITLE_LINE_H * TITLE_MAX_LINES
 const TITLE_COLOR = '#3D3D41'
 const TITLE_TO_META_GAP = 12
 /** 第二行：左 SKU + 右价；SKU/价数字 24px */
@@ -45,7 +47,7 @@ const PRICE_NUM_PX = 24
 const PRICE_CUR_PX = 24
 /** 左侧信息与价格之间的最小间距 */
 const META_GAP_SKU_PRICE = 14
-const TEXT_BLOCK_H = IMG_TEXT_GAP + TITLE_LINE_H + TITLE_TO_META_GAP + META_LINE_H + 12
+const TEXT_BLOCK_H = IMG_TEXT_GAP + TITLE_BLOCK_H + TITLE_TO_META_GAP + META_LINE_H + 12
 const ROW_GAP = 24
 const IMG_BOX_RADIUS = 10
 /** 图区略浅于白卡，托住产品图 */
@@ -222,6 +224,32 @@ function truncateTextToWidth(ctx: { measureText: (s: string) => { width: number 
   return t + ell
 }
 
+/** 标题固定两行区域：首行尽量在空格处断行，次行过长省略 */
+function wrapTitleTwoLines(ctx: SKRSContext2D, raw: string, maxW: number): [string, string] {
+  const s = (raw || '').trim() || '—'
+  if (ctx.measureText(s).width <= maxW) {
+    return [s, '']
+  }
+  let cut = 0
+  for (let i = 1; i <= s.length; i++) {
+    if (ctx.measureText(s.slice(0, i)).width <= maxW) cut = i
+    else break
+  }
+  if (cut === 0) {
+    return [truncateTextToWidth(ctx, s, maxW), '']
+  }
+  let bp = s.lastIndexOf(' ', cut)
+  if (bp <= 0) bp = cut
+  const line1 = s.slice(0, bp).trimEnd()
+  let rest = s.slice(bp).trimStart()
+  if (!line1.length) {
+    return [truncateTextToWidth(ctx, s, maxW), '']
+  }
+  if (!rest.length) return [line1, '']
+  const line2 = truncateTextToWidth(ctx, rest, maxW)
+  return [line1, line2]
+}
+
 function roundRectPath(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, r: number) {
   const radius = Math.min(r, w / 2, h / 2)
   ctx.beginPath()
@@ -383,10 +411,11 @@ export async function buildCatalogBrochureImage(
       ctx.font = `500 ${TITLE_FONT_PX}px ${FONT_UI}`
       ctx.textAlign = 'left'
       ctx.textBaseline = 'top'
-      const titleShow = truncateTextToWidth(ctx, (p.name || '—').trim() || '—', textMaxW)
+      const [t1, t2] = wrapTitleTwoLines(ctx, (p.name || '—').trim() || '—', textMaxW)
       ctx.fillStyle = TITLE_COLOR
-      ctx.fillText(titleShow, textLeft, ty)
-      ty += TITLE_LINE_H + TITLE_TO_META_GAP
+      ctx.fillText(t1, textLeft, ty)
+      if (t2) ctx.fillText(t2, textLeft, ty + TITLE_LINE_H)
+      ty += TITLE_BLOCK_H + TITLE_TO_META_GAP
 
       drawMetaSkuSupplierPrice(ctx, textLeft, ty, p, textMaxW)
       ctx.textAlign = 'left'

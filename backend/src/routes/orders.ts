@@ -103,6 +103,25 @@ orderRouter.get('/', requireAuth, (req: Request, res: Response) => {
   })
 })
 
+// POST /orders/batch-delete — 须放在 /:id 之前，避免被当成订单 id
+orderRouter.post('/batch-delete', requireAuth, requireRole('operator'), (req: Request, res: Response) => {
+  const db = getDb()
+  const raw = req.body?.ids
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return respondError(res, 'ids 必须为非空数组')
+  }
+  let deleted = 0
+  for (const v of raw) {
+    const id = parseInt(String(v), 10)
+    if (!Number.isFinite(id)) continue
+    const row = db.get('SELECT id FROM orders WHERE id = ?', [id])
+    if (!row) continue
+    db.run('DELETE FROM orders WHERE id = ?', [id])
+    deleted++
+  }
+  respond(res, { deleted })
+})
+
 // GET /orders/:id
 orderRouter.get('/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb()
@@ -130,6 +149,15 @@ orderRouter.get('/:id', requireAuth, (req: Request, res: Response) => {
   )
 
   respond(res, { ...order, status_log: statusLog })
+})
+
+// DELETE /orders/:id — 仅操作员；级联删除 order_status_log
+orderRouter.delete('/:id', requireAuth, requireRole('operator'), (req: Request, res: Response) => {
+  const db = getDb()
+  const row = db.get('SELECT id FROM orders WHERE id = ?', [req.params.id])
+  if (!row) return respondError(res, '订单不存在', 404)
+  db.run('DELETE FROM orders WHERE id = ?', [req.params.id])
+  respond(res, { deleted: true })
 })
 
 // POST /orders - Create manual order

@@ -110,6 +110,9 @@ export const orderApi = {
   pull: () => apiClient.post<PullResult>('/orders/pull'),
   updateWooStatus: (id: string | number, status: string) =>
     apiClient.put(`/orders/${id}/woo-status`, { status }),
+  remove: (id: string | number) => apiClient.del(`/orders/${id}`),
+  batchDelete: (ids: number[]) =>
+    apiClient.post<{ deleted: number }>('/orders/batch-delete', { ids }),
 }
 
 export const supplierApi = {

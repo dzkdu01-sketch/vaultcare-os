@@ -73,6 +73,7 @@ export function OrderListPage() {
   const [pulling, setPulling] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [batchLoading, setBatchLoading] = useState(false)
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   const loadOrders = async (page = 1) => {
     setLoading(true)
@@ -121,6 +122,13 @@ export function OrderListPage() {
   const handleFilter = () => loadOrders(1)
 
   const confirmableOrders = orders.filter(o => o.order_status === 'unconfirmed' && o.delivery_status === 'not_submitted')
+  const pageOrderIds = orders.map(o => o.id)
+  /** 操作员：整页可勾选（批量删除）；分销商：仅可确认单 */
+  const showCheckboxCol = isOp || confirmableOrders.length > 0
+  const selectedConfirmable = orders.filter(
+    o => selected.has(o.id) && o.order_status === 'unconfirmed' && o.delivery_status === 'not_submitted',
+  )
+
   const toggleSelect = (id: number) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -129,21 +137,52 @@ export function OrderListPage() {
     })
   }
   const toggleAll = () => {
+    if (isOp) {
+      if (pageOrderIds.length > 0 && pageOrderIds.every(i => selected.has(i))) setSelected(new Set())
+      else setSelected(new Set(pageOrderIds))
+      return
+    }
     if (selected.size === confirmableOrders.length) setSelected(new Set())
     else setSelected(new Set(confirmableOrders.map(o => o.id)))
   }
   const handleBatchConfirm = async () => {
-    if (selected.size === 0) return
-    if (!confirm(`确认将 ${selected.size} 个订单标记为"客户已确认"？`)) return
+    if (selectedConfirmable.length === 0) return
+    if (!confirm(`确认将 ${selectedConfirmable.length} 个订单标记为"客户已确认"？`)) return
     setBatchLoading(true)
     let ok = 0, fail = 0
-    for (const id of selected) {
-      try { await orderApi.updateOrderStatus(id, 'customer_confirmed'); ok++ }
+    for (const o of selectedConfirmable) {
+      try { await orderApi.updateOrderStatus(o.id, 'customer_confirmed'); ok++ }
       catch { fail++ }
     }
     setBatchLoading(false)
     alert(`成功确认 ${ok} 个${fail > 0 ? `，失败 ${fail} 个` : ''}`)
     loadOrders(pagination.page)
+  }
+
+  const handleBatchDelete = async () => {
+    if (!isOp || selected.size === 0) return
+    if (!confirm(`确定删除已选中的 ${selected.size} 个订单？此操作不可恢复。`)) return
+    setBatchDeleting(true)
+    try {
+      const { deleted } = await orderApi.batchDelete([...selected])
+      alert(`已删除 ${deleted} 个订单`)
+      loadOrders(pagination.page)
+    } catch (e: any) {
+      alert(e?.message || '删除失败')
+    } finally {
+      setBatchDeleting(false)
+    }
+  }
+
+  const handleRowDelete = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation()
+    if (!confirm('确定删除该订单？不可恢复。')) return
+    try {
+      await orderApi.remove(id)
+      loadOrders(pagination.page)
+    } catch (err: any) {
+      alert(err?.message || '删除失败')
+    }
   }
 
   const handleExport = () => {
@@ -186,7 +225,7 @@ export function OrderListPage() {
   }
 
   const dataColCount = 9 + (isOp ? 1 : 0)
-  const tableColSpan = dataColCount + (confirmableOrders.length > 0 ? 1 : 0)
+  const tableColSpan = dataColCount + (showCheckboxCol ? 1 : 0) + (isOp ? 1 : 0)
 
   return (
     <div className="space-y-4">
@@ -219,10 +258,16 @@ export function OrderListPage() {
             <button onClick={handleFilter} className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50">筛选</button>
           </div>
           <div className="flex gap-2">
-            {selected.size > 0 && (
-              <button onClick={handleBatchConfirm} disabled={batchLoading}
+            {isOp && selected.size > 0 && (
+              <button type="button" onClick={handleBatchDelete} disabled={batchDeleting}
+                className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50">
+                {batchDeleting ? '删除中...' : `批量删除 (${selected.size})`}
+              </button>
+            )}
+            {selectedConfirmable.length > 0 && (
+              <button type="button" onClick={handleBatchConfirm} disabled={batchLoading}
                 className="rounded-md bg-orange-500 px-4 py-2 text-sm text-white hover:bg-orange-600 disabled:opacity-50">
-                {batchLoading ? '处理中...' : `批量确认 (${selected.size})`}
+                {batchLoading ? '处理中...' : `批量确认 (${selectedConfirmable.length})`}
               </button>
             )}
             <button onClick={handleExport} className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">导出</button>
@@ -255,9 +300,12 @@ export function OrderListPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              {confirmableOrders.length > 0 && (
+              {showCheckboxCol && (
                 <th className="px-3 py-3 w-8">
-                  <input type="checkbox" checked={selected.size > 0 && selected.size === confirmableOrders.length}
+                  <input type="checkbox"
+                    checked={isOp
+                      ? pageOrderIds.length > 0 && pageOrderIds.every(id => selected.has(id))
+                      : selected.size > 0 && selected.size === confirmableOrders.length}
                     onChange={toggleAll} className="accent-primary" />
                 </th>
               )}
@@ -272,6 +320,7 @@ export function OrderListPage() {
               {!isOp && <th className="text-left px-4 py-3 font-medium text-slate-600">网站名称</th>}
               <th className="text-left px-4 py-3 font-medium text-slate-600">来源</th>
               <th className="text-left px-4 py-3 font-medium text-slate-600">日期</th>
+              {isOp && <th className="text-right px-4 py-3 font-medium text-slate-600 w-24">操作</th>}
             </tr>
           </thead>
           <tbody>
@@ -285,12 +334,13 @@ export function OrderListPage() {
               </td></tr>
             ) : orders.map(o => {
               const isConfirmable = o.order_status === 'unconfirmed' && o.delivery_status === 'not_submitted'
+              const rowSelectable = isOp || isConfirmable
               return (
                 <tr key={o.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
                   onClick={() => navigate(`/orders/${o.id}`)}>
-                  {confirmableOrders.length > 0 && (
+                  {showCheckboxCol && (
                     <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                      {isConfirmable && (
+                      {rowSelectable && (
                         <input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} className="accent-primary" />
                       )}
                     </td>
@@ -332,6 +382,15 @@ export function OrderListPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{formatDate(o.date_created)}</td>
+                  {isOp && (
+                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                      <button type="button"
+                        className="text-xs text-red-600 hover:text-red-800 underline-offset-2 hover:underline"
+                        onClick={e => handleRowDelete(e, o.id)}>
+                        删除
+                      </button>
+                    </td>
+                  )}
                 </tr>
               )
             })}

@@ -13,6 +13,9 @@ frontend/screenshots/
 .env
 .env.local
 .env.*.local
+# Playwright E2E 登录凭据（仅本地）
+frontend/.env.e2e
+frontend/e2e/.auth/
 
 # WooCommerce 图片下载脚本默认输出（可能很大）
 downloads/woo-product-images/

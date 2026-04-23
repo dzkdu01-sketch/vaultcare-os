@@ -52,8 +52,8 @@ export function ProductListPage() {
   const [dbProductCount, setDbProductCount] = useState(0)
   const [keyword, setKeyword] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
-  /** 默认上架（出售中），避免首屏混入草稿 */
-  const [filterStatus, setFilterStatus] = useState('1')
+  /** 默认只看草稿（非上架），需看全部时改为「全部状态」 */
+  const [filterStatus, setFilterStatus] = useState('0')
   const [filterTag, setFilterTag] = useState('')
   const [filterCatalogIn, setFilterCatalogIn] = useState<'0' | '1' | ''>('')
   const [loading, setLoading] = useState(true)
@@ -546,11 +546,13 @@ export function ProductListPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2 items-center">
-          <input
+          <textarea
             value={keyword}
             onChange={e => setKeyword(e.target.value)}
-            placeholder="搜索 SKU / 名称 / 分类 / 供应商编码"
-            className="px-3 py-2 border border-slate-300 rounded-md text-sm w-64"
+            rows={2}
+            title="多个 SKU：用英文逗号、分号或换行分隔，仅按本地 SKU 与供应商编码匹配。仅一段时：可按名称、分类、SKU、供应商编码模糊搜。"
+            placeholder="VC279, LY888 或每行一个；单段可搜名称/分类/SKU"
+            className="px-3 py-2 border border-slate-300 rounded-md text-sm w-64 min-w-[12rem] min-h-[2.75rem] resize-y font-mono align-top"
           />
           <select
             value={filterCategory}

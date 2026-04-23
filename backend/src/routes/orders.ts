@@ -2,12 +2,8 @@ import { Router, Request, Response } from 'express'
 import { getDb } from '../db/index.js'
 import { requireAuth, requireRole, optionalAuth } from '../middleware/auth.js'
 import { generateOrderNumber } from '../services/order-number.js'
-import {
-  extractCustomerWhatsappFromWooOrder,
-  fetchOrders,
-  updateOrderStatus as wooUpdateStatus,
-  WooSite,
-} from '../services/woo-client.js'
+import { pollAllSites } from '../services/order-sync.js'
+import { updateOrderStatus as wooUpdateStatus, WooSite } from '../services/woo-client.js'
 
 export const orderRouter = Router()
 
@@ -360,85 +356,13 @@ orderRouter.put('/:id/delivery-status', requireAuth, requireRole('operator'), (r
   respond(res, { updated: true, delivery_status: newStatus })
 })
 
-// POST /orders/pull - Pull from WooCommerce (legacy, keep as fallback)
+// POST /orders/pull — 与后台定时任务共用 order-sync.pullAllSites
 orderRouter.post('/pull', requireAuth, requireRole('operator'), async (_req: Request, res: Response) => {
   const db = getDb()
-  const sites = db.all("SELECT * FROM sites WHERE status = 'active'") as any[]
-  if (sites.length === 0) return respondError(res, '没有已配置的活跃站点')
+  const siteCount = (db.get("SELECT COUNT(*) as c FROM sites WHERE status = 'active'") as { c: number })?.c ?? 0
+  if (siteCount === 0) return respondError(res, '没有已配置的活跃站点')
 
-  const results: Array<{ site_id: string; site_name: string; pulled: number; error?: string }> = []
-
-  for (const site of sites) {
-    const wooSite: WooSite = { url: site.url, consumer_key: site.consumer_key, consumer_secret: site.consumer_secret }
-    try {
-      const orders = await fetchOrders(wooSite, { per_page: 50 })
-      let pulled = 0
-
-      for (const order of orders) {
-        const customerName = [order.billing?.first_name, order.billing?.last_name].filter(Boolean).join(' ')
-        const whatsapp = extractCustomerWhatsappFromWooOrder(order)
-        const customerCity = order.billing?.city || order.shipping?.city || ''
-        const customerAddress = [
-          order.shipping?.address_1 || order.billing?.address_1,
-          (order.shipping as any)?.address_2 || (order.billing as any)?.address_2,
-        ].filter(Boolean).join(', ')
-
-        try {
-          // Check if exists
-          const existing = db.get(
-            'SELECT id FROM orders WHERE site_id = ? AND woo_order_id = ?',
-            [site.id, order.id]
-          )
-
-          if (existing) {
-            db.run(
-              `UPDATE orders SET status = ?, customer_name = ?, customer_email = ?, customer_phone = ?, customer_whatsapp = ?,
-               total = ?, line_items = ?, customer_city = ?, customer_address = ?, date_modified = ?, pulled_at = ?
-               WHERE site_id = ? AND woo_order_id = ?`,
-              [
-                order.status, customerName, order.billing?.email || '', order.billing?.phone || '', whatsapp,
-                order.total, JSON.stringify(order.line_items || []),
-                customerCity, customerAddress, order.date_modified, now(),
-                site.id, order.id,
-              ]
-            )
-          } else {
-            let orderNumber = order.number
-            if (site.distributor_id) {
-              try { orderNumber = generateOrderNumber(site.distributor_id) } catch { /* use woo number */ }
-            }
-            db.run(
-              `INSERT INTO orders (
-                site_id, woo_order_id, order_number, status,
-                customer_name, customer_email, customer_phone, customer_whatsapp,
-                customer_city, customer_address,
-                payment_method, total, currency, line_items, shipping_address, billing_address,
-                date_created, date_modified, pulled_at,
-                distributor_id, source, created_by_role, order_status, delivery_status
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                site.id, order.id, orderNumber, order.status,
-                customerName, order.billing?.email || '', order.billing?.phone || '', whatsapp,
-                customerCity, customerAddress,
-                order.payment_method_title || '', order.total, order.currency,
-                JSON.stringify(order.line_items || []),
-                JSON.stringify(order.shipping || {}),
-                JSON.stringify(order.billing || {}),
-                order.date_created, order.date_modified, now(),
-                site.distributor_id || null, 'woo_webhook', 'system',
-                'unconfirmed', 'not_submitted'
-              ]
-            )
-          }
-          pulled++
-        } catch { /* skip individual order errors */ }
-      }
-      results.push({ site_id: site.id, site_name: site.name, pulled })
-    } catch (err: any) {
-      results.push({ site_id: site.id, site_name: site.name, pulled: 0, error: err.message })
-    }
-  }
-
+  const results = await pollAllSites()
   respond(res, { results })
 })
 

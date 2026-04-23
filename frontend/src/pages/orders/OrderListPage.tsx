@@ -106,7 +106,16 @@ export function OrderListPage() {
   useEffect(() => {
     siteApi.list().then(setSites).catch(() => {})
     if (isOp) distributorApi.list().then(setDistributors).catch(() => {})
-    loadOrders()
+    void (async () => {
+      if (isOp) {
+        try {
+          await orderApi.pull()
+        } catch {
+          // 与 Woo 同步失败时仍展示本地已拉取的订单
+        }
+      }
+      await loadOrders(1)
+    })()
   }, [])
 
   const handlePull = async () => {

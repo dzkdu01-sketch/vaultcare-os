@@ -39,6 +39,14 @@ function formatSiteNamesForUi(names: string[], maxShow = 3): string {
   return `${names.slice(0, maxShow).join('、')} 等 ${names.length} 个站点`
 }
 
+/** 列表展示用：后端为 ISO 8601 字符串，最近更新已靠接口排序 */
+function formatProductUpdatedAt(iso: string | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return String(iso)
+  return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
 const LIST_PAGE_SIZE_OPTIONS = [30, 70, 150] as const
 type ListPageSize = (typeof LIST_PAGE_SIZE_OPTIONS)[number]
 
@@ -526,7 +534,7 @@ export function ProductListPage() {
   }
 
   const cellClass = 'cursor-pointer hover:bg-primary-muted/50 rounded px-1 -mx-1 transition-colors'
-  const colSpanCount = 11
+  const colSpanCount = 12
   const selectionBusy = syncingAll || syncingSelected || batchUpdating
   const selectedOnPage = useMemo(
     () => products.filter(p => selectedIds.has(p.id)).length,
@@ -781,6 +789,12 @@ export function ProductListPage() {
               </th>
               <th className="w-20 px-4 py-3 text-left text-xs font-semibold text-slate-600">同步</th>
               <th className="w-32 px-4 py-3 text-left text-xs font-semibold text-slate-600">供应商编码</th>
+              <th
+                className="w-36 px-4 py-3 text-left text-xs font-semibold text-slate-600"
+                title="默认按此列由新到旧排序（与接口一致）"
+              >
+                更新时间
+              </th>
               <th className="w-24 px-4 py-3 text-right text-xs font-semibold text-slate-600">操作</th>
             </tr>
           </thead>
@@ -901,6 +915,11 @@ export function ProductListPage() {
 
                   {/* 供应商编码 */}
                   <td className="px-4 py-2 text-slate-400 font-mono text-xs">{p.supplier_codes || '-'}</td>
+
+                  {/* 更新时间（列表由接口按 updated_at DESC 排序） */}
+                  <td className="px-4 py-2 text-slate-500 text-xs whitespace-nowrap" title={p.updated_at}>
+                    {formatProductUpdatedAt(p.updated_at)}
+                  </td>
 
                   {/* 操作 */}
                   <td className="px-4 py-2 text-right whitespace-nowrap">

@@ -52,8 +52,8 @@ export function ProductListPage() {
   const [dbProductCount, setDbProductCount] = useState(0)
   const [keyword, setKeyword] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
-  /** 默认只看草稿（非上架），需看全部时改为「全部状态」 */
-  const [filterStatus, setFilterStatus] = useState('0')
+  /** 默认全部状态 */
+  const [filterStatus, setFilterStatus] = useState('')
   const [filterTag, setFilterTag] = useState('')
   const [filterCatalogIn, setFilterCatalogIn] = useState<'0' | '1' | ''>('')
   const [loading, setLoading] = useState(true)

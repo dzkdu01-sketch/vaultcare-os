@@ -65,6 +65,8 @@ export function OrderListPage() {
   const navigate = useNavigate()
   const user = getSessionUser()
   const isOp = user?.role === 'operator'
+  /** 仅通过「拉取订单」按钮拉 Woo，进页不自动 pull */
+  const canManualPull = user?.role === 'operator' || user?.role === 'distributor'
 
   const [orders, setOrders] = useState<ExtendedOrder[]>([])
   const [sites, setSites] = useState<Site[]>([])
@@ -76,6 +78,7 @@ export function OrderListPage() {
     site_id: '', keyword: '', order_status: '', delivery_status: '', distributor_id: '',
   })
   const [loading, setLoading] = useState(true)
+  const [pulling, setPulling] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [batchLoading, setBatchLoading] = useState(false)
   const [batchDeleting, setBatchDeleting] = useState(false)
@@ -107,6 +110,25 @@ export function OrderListPage() {
     if (isOp) distributorApi.list().then(setDistributors).catch(() => {})
     void loadOrders(1)
   }, [])
+
+  const handlePull = async () => {
+    setPulling(true)
+    try {
+      const result = await orderApi.pull()
+      const summary = result.results.map(r =>
+        r.error
+          ? `${r.site_name}: 失败 (${r.error})`
+          : `${r.site_name}: 新增 ${r.pulled}，更新 ${r.updated ?? 0}`
+      ).join('\n')
+      alert(summary)
+      void loadOrders(pagination.page)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      alert(`拉取失败: ${msg}`)
+    } finally {
+      setPulling(false)
+    }
+  }
 
   const handleFilter = () => loadOrders(1)
 
@@ -260,6 +282,12 @@ export function OrderListPage() {
               </button>
             )}
             <button onClick={handleExport} className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">导出</button>
+            {canManualPull && (
+              <button type="button" onClick={handlePull} disabled={pulling}
+                className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50">
+                {pulling ? '拉取中...' : '拉取订单'}
+              </button>
+            )}
             <button onClick={() => navigate('/orders/new')}
               className="rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">+ 新建订单</button>
           </div>

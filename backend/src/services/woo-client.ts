@@ -178,7 +178,7 @@ export async function fetchAllProducts(site: WooSite): Promise<WooProduct[]> {
   return Array.from(byId.values())
 }
 
-/** 拉取订单 */
+/** 拉取订单（单页，兼容旧调用） */
 export async function fetchOrders(site: WooSite, params: { after?: string; page?: number; per_page?: number } = {}): Promise<WooOrder[]> {
   const query = new URLSearchParams()
   if (params.after) query.set('after', params.after)
@@ -187,6 +187,33 @@ export async function fetchOrders(site: WooSite, params: { after?: string; page?
   query.set('orderby', 'date')
   query.set('order', 'desc')
   return wooFetch<WooOrder[]>(site, `/orders?${query.toString()}`)
+}
+
+/**
+ * 按 `modified_after` 增量拉取多页（WooCommerce REST v3 需支持 modified_after，常见 WC 3.5+）。
+ * @param modifiedAfter ISO8601，只拉取在 Woo 侧 **修改时间晚于** 此时间的订单（配合本地游标实现增量同步）
+ */
+export async function fetchOrdersModifiedSince(
+  site: WooSite,
+  modifiedAfter: string,
+  options: { per_page?: number; maxPages?: number } = {},
+): Promise<WooOrder[]> {
+  const perPage = options.per_page ?? 50
+  const maxPages = options.maxPages ?? 30
+  const all: WooOrder[] = []
+  for (let page = 1; page <= maxPages; page++) {
+    const query = new URLSearchParams()
+    query.set('modified_after', modifiedAfter)
+    query.set('page', String(page))
+    query.set('per_page', String(perPage))
+    query.set('orderby', 'modified')
+    query.set('order', 'asc')
+    const batch = await wooFetch<WooOrder[]>(site, `/orders?${query.toString()}`)
+    if (!batch || batch.length === 0) break
+    all.push(...batch)
+    if (batch.length < perPage) break
+  }
+  return all
 }
 
 /** 更新订单状态 */

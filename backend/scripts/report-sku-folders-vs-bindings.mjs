@@ -5,7 +5,7 @@
  *
  *   node scripts/report-sku-folders-vs-bindings.mjs
  */
-import initSqlJs from 'sql.js'
+import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -15,40 +15,34 @@ const dbPath = path.join(__dirname, '..', 'data', 'vaultcare.db')
 const defaultRoot = path.join('C:', 'Users', '杜兆凯', 'Desktop', '情趣图片')
 const rootDir = process.env.RENAME_PIC_ROOT || defaultRoot
 
-async function main() {
+function main() {
   if (!fs.existsSync(dbPath)) {
     console.error('找不到数据库:', dbPath)
     process.exit(1)
   }
 
-  const SQL = await initSqlJs()
-  const db = new SQL.Database(fs.readFileSync(dbPath))
+  const db = new Database(dbPath, { readonly: true })
 
-  const products = db.exec(`SELECT id, sku FROM products`)
+  const productRows = db.prepare('SELECT id, sku FROM products').all()
   const idToSku = new Map()
   const skuSet = new Set()
-  if (products[0]?.values?.length) {
-    for (const [id, sku] of products[0].values) {
-      idToSku.set(String(id), String(sku))
-      skuSet.add(String(sku))
-    }
+  for (const row of productRows) {
+    idToSku.set(String(row.id), String(row.sku))
+    skuSet.add(String(row.sku))
   }
 
-  const bindings = db.exec(`
-    SELECT product_id, supplier_code FROM product_supplier
-  `)
+  const bindingRows = db.prepare('SELECT product_id, supplier_code FROM product_supplier').all()
   /** product_id -> supplier_code[] */
   const pidToCodes = new Map()
   /** 所有出现过的供应商编码（用于识别「已是供应商文件夹名」） */
   const allSupplierCodes = new Set()
-  if (bindings[0]?.values?.length) {
-    for (const [pid, code] of bindings[0].values) {
-      const c = String(code).trim()
-      if (!c) continue
-      allSupplierCodes.add(c)
-      if (!pidToCodes.has(pid)) pidToCodes.set(pid, [])
-      pidToCodes.get(pid).push(c)
-    }
+  for (const row of bindingRows) {
+    const pid = String(row.product_id)
+    const c = String(row.supplier_code).trim()
+    if (!c) continue
+    allSupplierCodes.add(c)
+    if (!pidToCodes.has(pid)) pidToCodes.set(pid, [])
+    pidToCodes.get(pid).push(c)
   }
 
   const hasBinding = new Set(pidToCodes.keys())
@@ -158,7 +152,9 @@ async function main() {
   console.log('已写入:', outPath)
 }
 
-main().catch(e => {
+try {
+  main()
+} catch (e) {
   console.error(e)
   process.exit(1)
-})
+}

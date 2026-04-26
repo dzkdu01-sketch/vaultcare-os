@@ -44,6 +44,20 @@ function now() { return new Date().toISOString() }
 function respond(res: Response, data: unknown, code = 200) { res.status(code).json({ code, message: 'ok', data }) }
 function respondError(res: Response, message: string, code = 400) { res.status(code).json({ code, message, data: null }) }
 
+const MAX_KEYWORD_TOKENS = 200
+
+/** 按逗号/分号/换行切分，用于多 SKU 列表；不切普通空格，避免整句被拆散 */
+function parseProductKeywordTokens(raw: string): string[] {
+  const out: string[] = []
+  for (const line of raw.split(/[\n\r]+/)) {
+    for (const seg of line.split(/[,;，；]+/)) {
+      const t = seg.trim()
+      if (t) out.push(t)
+    }
+  }
+  return out.slice(0, MAX_KEYWORD_TOKENS)
+}
+
 /** 新建商品自动 SKU 前缀（与历史 VC 系列并存，仅 DK 序列递增） */
 const AUTO_SKU_PREFIX = 'DK'
 
@@ -127,12 +141,28 @@ productRouter.get('/items', (req: Request, res: Response) => {
   const conditions: string[] = []
   const params: unknown[] = []
 
-  if (keyword) {
-    conditions.push(
-      '(p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ? OR EXISTS (SELECT 1 FROM product_supplier ps_kw WHERE ps_kw.product_id = p.id AND ps_kw.supplier_code LIKE ?))',
-    )
-    const kw = `%${keyword}%`
-    params.push(kw, kw, kw, kw)
+  if (keyword && keyword.trim()) {
+    const tokens = parseProductKeywordTokens(keyword)
+    if (tokens.length >= 2) {
+      // 多段：仅匹配本地 SKU 与供应商编码（OR），与「整句搜索名称」区分
+      const per = tokens.map(
+        () => '(p.sku LIKE ? OR EXISTS (SELECT 1 FROM product_supplier ps_m WHERE ps_m.product_id = p.id AND ps_m.supplier_code LIKE ?))',
+      )
+      conditions.push(`(${per.join(' OR ')})`)
+      for (const t of tokens) {
+        const w = `%${t}%`
+        params.push(w, w)
+      }
+    } else if (tokens.length === 1) {
+      const w = tokens[0].trim()
+      if (w) {
+        const kw = `%${w}%`
+        conditions.push(
+          '(p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ? OR EXISTS (SELECT 1 FROM product_supplier ps_kw WHERE ps_kw.product_id = p.id AND ps_kw.supplier_code LIKE ?))',
+        )
+        params.push(kw, kw, kw, kw)
+      }
+    }
   }
 
   if (category) {

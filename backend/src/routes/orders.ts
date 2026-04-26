@@ -2,7 +2,11 @@ import { Router, Request, Response } from 'express'
 import { getDb } from '../db/index.js'
 import { requireAuth, requireRole, optionalAuth } from '../middleware/auth.js'
 import { generateOrderNumber } from '../services/order-number.js'
-import { pollAllSites } from '../services/order-sync.js'
+import {
+  ORDER_INBOUND_FROM_WOO_ENABLED,
+  pollAllSites,
+  pollSitesForDistributor,
+} from '../services/order-sync.js'
 import { updateOrderStatus as wooUpdateStatus, WooSite } from '../services/woo-client.js'
 
 export const orderRouter = Router()
@@ -356,9 +360,26 @@ orderRouter.put('/:id/delivery-status', requireAuth, requireRole('operator'), (r
   respond(res, { updated: true, delivery_status: newStatus })
 })
 
-// POST /orders/pull — 与后台定时任务共用 order-sync.pullAllSites
-orderRouter.post('/pull', requireAuth, requireRole('operator'), async (_req: Request, res: Response) => {
+// POST /orders/pull — 操作员：全站增量；分销商：仅其绑定站点（需 ORDER_INBOUND_FROM_WOO=1）
+orderRouter.post('/pull', requireAuth, requireRole('operator', 'distributor'), async (req: Request, res: Response) => {
+  if (!ORDER_INBOUND_FROM_WOO_ENABLED) {
+    return respondError(res, '已从 Woo 同步订单的功能已关闭（需服务端设置 ORDER_INBOUND_FROM_WOO=1 后重启）', 403)
+  }
+
   const db = getDb()
+  const user = req.user!
+
+  if (user.role === 'distributor') {
+    const did = user.distributorId!
+    const n = (db.get(
+      "SELECT COUNT(*) as c FROM sites WHERE status = 'active' AND distributor_id = ?",
+      [String(did)]
+    ) as { c: number })?.c ?? 0
+    if (n === 0) return respondError(res, '没有已绑定您的活跃站点')
+    const results = await pollSitesForDistributor(did)
+    return respond(res, { results })
+  }
+
   const siteCount = (db.get("SELECT COUNT(*) as c FROM sites WHERE status = 'active'") as { c: number })?.c ?? 0
   if (siteCount === 0) return respondError(res, '没有已配置的活跃站点')
 

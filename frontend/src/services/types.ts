@@ -205,6 +205,7 @@ export type PullResult = {
     site_id: string
     site_name: string
     pulled: number
+    updated: number
     error?: string
   }>
 }

@@ -6,7 +6,7 @@
  *
  * UPLOAD_VIDEO_ROOT 可覆盖目录。
  */
-import initSqlJs from 'sql.js'
+import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -23,25 +23,21 @@ function isVideo(name) {
   return VIDEO_EXT.has(path.extname(name).toLowerCase())
 }
 
-async function loadMaps() {
-  const filebuffer = fs.readFileSync(dbPath)
-  const SQL = await initSqlJs()
-  const db = new SQL.Database(filebuffer)
-  const res = db.exec(`
+function loadMaps() {
+  const db = new Database(dbPath, { readonly: true })
+  const res = db.prepare(`
     SELECT p.sku, ps.supplier_code
     FROM products p
     JOIN product_supplier ps ON ps.product_id = p.id
     ORDER BY p.sku, ps.supplier_code
-  `)
+  `).all()
   db.close()
   const skuToSupplier = new Map()
-  if (res[0]?.values?.length) {
-    for (const [sku, code] of res[0].values) {
-      const s = String(sku)
-      const c = String(code).trim()
-      if (!c) continue
-      if (!skuToSupplier.has(s)) skuToSupplier.set(s, c)
-    }
+  for (const row of res) {
+    const s = String(row.sku)
+    const c = String(row.supplier_code).trim()
+    if (!c) continue
+    if (!skuToSupplier.has(s)) skuToSupplier.set(s, c)
   }
   const supplierSet = new Set(skuToSupplier.values())
   return { skuToSupplier, supplierSet }
@@ -63,7 +59,7 @@ async function main() {
     process.exit(1)
   }
 
-  const { skuToSupplier, supplierSet } = await loadMaps()
+  const { skuToSupplier, supplierSet } = loadMaps()
   if (skuToSupplier.size === 0) {
     console.error('数据库无 SKU–供应商绑定')
     process.exit(1)

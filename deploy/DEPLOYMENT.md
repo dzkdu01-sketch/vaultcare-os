@@ -2,6 +2,8 @@
 
 **生产环境速查（IP、端口、目录、踩坑）：** [`DEPLOYMENT-SUMMARY.md`](DEPLOYMENT-SUMMARY.md)
 
+**部署问题复盘与上线前速查（502、PM2、git、无 systemd 等）：** [`DEPLOY-LESSONS-ZH.md`](DEPLOY-LESSONS-ZH.md)
+
 本文是 **部署前的检查清单与入口**，细节与排错见同目录 [`README.md`](README.md)。
 
 ---
@@ -12,6 +14,7 @@
 |------|------|
 | **`deploy/DEPLOYMENT.md`**（本文） | 部署前索引与清单 |
 | [`deploy/README.md`](README.md) | 分步说明、环境变量、数据库同步、排错 |
+| [`deploy/DEPLOY-LESSONS-ZH.md`](DEPLOY-LESSONS-ZH.md) | 部署踩坑复盘、上线前清单、与速查配合阅读 |
 | `deploy/server-install.sh` | Ubuntu 上一键安装（Nginx + Node + 构建 + PM2） |
 | `deploy/nginx-ip.conf` | Nginx 模板（HTTP + 静态 + `/api` 反代） |
 | `deploy/ecosystem.config.cjs` | PM2 配置（进程名 **`vault-os11-api`**） |

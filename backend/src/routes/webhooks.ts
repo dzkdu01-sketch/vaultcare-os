@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { getDb } from '../db/index.js'
 import { generateOrderNumber } from '../services/order-number.js'
 import { extractCustomerWhatsappFromWooOrder } from '../services/woo-client.js'
+import { ORDER_INBOUND_FROM_WOO_ENABLED } from '../services/order-sync.js'
 
 export const webhookRouter = Router()
 
@@ -15,6 +16,10 @@ webhookRouter.post('/woo/:siteId', (req: Request, res: Response) => {
   const db = getDb()
   const site = db.get('SELECT * FROM sites WHERE id = ?', [req.params.siteId]) as any
   if (!site) return respondError(res, 'Site not found', 404)
+
+  if (!ORDER_INBOUND_FROM_WOO_ENABLED) {
+    return respond(res, { message: 'Order webhook inbound disabled' })
+  }
 
   // Verify webhook signature if secret is configured
   if (site.webhook_secret) {

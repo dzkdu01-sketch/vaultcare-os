@@ -76,7 +76,6 @@ export function OrderListPage() {
     site_id: '', keyword: '', order_status: '', delivery_status: '', distributor_id: '',
   })
   const [loading, setLoading] = useState(true)
-  const [pulling, setPulling] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [batchLoading, setBatchLoading] = useState(false)
   const [batchDeleting, setBatchDeleting] = useState(false)
@@ -106,33 +105,8 @@ export function OrderListPage() {
   useEffect(() => {
     siteApi.list().then(setSites).catch(() => {})
     if (isOp) distributorApi.list().then(setDistributors).catch(() => {})
-    void (async () => {
-      if (isOp) {
-        try {
-          await orderApi.pull()
-        } catch {
-          // 与 Woo 同步失败时仍展示本地已拉取的订单
-        }
-      }
-      await loadOrders(1)
-    })()
+    void loadOrders(1)
   }, [])
-
-  const handlePull = async () => {
-    setPulling(true)
-    try {
-      const result = await orderApi.pull()
-      const summary = result.results.map(r =>
-        r.error ? `${r.site_name}: 失败 (${r.error})` : `${r.site_name}: 拉取 ${r.pulled} 个订单`
-      ).join('\n')
-      alert(summary)
-      loadOrders()
-    } catch (err: any) {
-      alert(`拉取失败: ${err.message}`)
-    } finally {
-      setPulling(false)
-    }
-  }
 
   const handleFilter = () => loadOrders(1)
 
@@ -288,12 +262,6 @@ export function OrderListPage() {
             <button onClick={handleExport} className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">导出</button>
             <button onClick={() => navigate('/orders/new')}
               className="rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">+ 新建订单</button>
-            {isOp && (
-              <button onClick={handlePull} disabled={pulling}
-                className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover disabled:opacity-50">
-                {pulling ? '拉取中...' : '拉取订单'}
-              </button>
-            )}
           </div>
         </div>
       </div>

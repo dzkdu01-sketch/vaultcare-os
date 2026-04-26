@@ -1,31 +1,81 @@
-import { getDb, withTransaction } from '../db/index.js'
-import { extractCustomerWhatsappFromWooOrder, fetchOrders, WooSite } from './woo-client.js'
+import { getDb, withTransaction, type DbWrapper } from '../db/index.js'
+import {
+  type WooOrder,
+  extractCustomerWhatsappFromWooOrder,
+  fetchOrders,
+  fetchOrdersModifiedSince,
+  WooSite,
+} from './woo-client.js'
 import { generateOrderNumber } from './order-number.js'
 
-/** 小机/低单量：每日至少自动同步一次；打开订单页时会立即拉取（见前端的 pull） */
+/**
+ * 默认关闭：不启动定时拉单、/orders/pull 与 Woo 订单 webhook 不写入/更新。
+ * 部署需从 Woo 拉单或收 webhook 时设置环境变量 `ORDER_INBOUND_FROM_WOO=1`。
+ */
+export const ORDER_INBOUND_FROM_WOO_ENABLED = process.env.ORDER_INBOUND_FROM_WOO === '1'
+
+/** 小机/低单量：仅当 ORDER_INBOUND_FROM_WOO_ENABLED 时每 24h 全站增量拉取 */
 const POLL_INTERVAL = 24 * 60 * 60 * 1000 // 24 小时
 let timer: ReturnType<typeof setInterval> | null = null
+
+/** settings.value 中 JSON：各站点「上次已处理」的最大 modified 时间（ISO） */
+const CURSOR_SETTINGS_KEY = 'order_sync_modified_cursors'
+
+/** 首同步：按 modified 回溯窗口（与 Woo 增量参数一致） */
+const FIRST_SYNC_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000
+
+function now() { return new Date().toISOString() }
+
+function readCursors(db: DbWrapper): Record<string, string> {
+  const row = db.get('SELECT value FROM settings WHERE key = ?', [CURSOR_SETTINGS_KEY]) as { value?: string } | undefined
+  if (!row?.value) return {}
+  try {
+    return JSON.parse(row.value) as Record<string, string>
+  } catch {
+    return {}
+  }
+}
+
+function writeCursors(db: DbWrapper, cursors: Record<string, string>) {
+  db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [CURSOR_SETTINGS_KEY, JSON.stringify(cursors)])
+}
 
 export type OrderPullSiteResult = {
   site_id: string
   site_name: string
-  /** 本趟拉取**新写入**的订单数（与终端日志「新增 n 条」一致） */
+  /** 本趟新插入本地库的订单数 */
   pulled: number
+  /** 本趟在本地更新的已有订单数（Woo 有变更） */
+  updated: number
   error?: string
 }
 
-function now() { return new Date().toISOString() }
+type PullCount = { pulled: number; updated: number }
 
-async function pullOrdersFromSite(site: any): Promise<number> {
+async function pullOrdersFromSite(site: any): Promise<PullCount> {
   const db = getDb()
+  const cursors: Record<string, string> = { ...readCursors(db) }
+  const prev = cursors[site.id]
+  const defaultLookback = new Date(Date.now() - FIRST_SYNC_LOOKBACK_MS).toISOString()
+  const modifiedAfter = prev ?? defaultLookback
+
   const wooSite: WooSite = {
     url: site.url,
     consumer_key: site.consumer_key,
     consumer_secret: site.consumer_secret,
   }
 
-  const orders = await fetchOrders(wooSite, { per_page: 50 })
+  let orders: WooOrder[] = []
+  try {
+    orders = await fetchOrdersModifiedSince(wooSite, modifiedAfter, { per_page: 50, maxPages: 30 })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn(`[order-sync] 增量拉单失败，回退单页(50)最近订单: ${site.name} — ${msg}`)
+    orders = await fetchOrders(wooSite, { per_page: 50, page: 1 })
+  }
+
   let pulled = 0
+  let updated = 0
 
   withTransaction(() => {
     for (const order of orders) {
@@ -55,6 +105,7 @@ async function pullOrdersFromSite(site: any): Promise<number> {
               site.id, order.id,
             ]
           )
+          updated++
         } else {
           let orderNumber = order.number
           if (site.distributor_id) {
@@ -88,43 +139,69 @@ async function pullOrdersFromSite(site: any): Promise<number> {
     }
   })
 
-  return pulled
+  if (orders.length > 0) {
+    const maxT = Math.max(...orders.map(o => new Date(o.date_modified).getTime()))
+    cursors[site.id] = new Date(maxT).toISOString()
+  } else if (!prev) {
+    cursors[site.id] = new Date().toISOString()
+  }
+  writeCursors(db, cursors)
+
+  return { pulled, updated }
 }
 
-/**
- * 从全部活跃站点拉取订单（与 POST /orders/pull 共用逻辑）。
- * 无活跃站点时返回空数组。
- */
-export async function pollAllSites(): Promise<OrderPullSiteResult[]> {
-  const db = getDb()
-  const sites = db.all("SELECT * FROM sites WHERE status = 'active'") as any[]
+async function runPullForSites(sites: any[]): Promise<OrderPullSiteResult[]> {
   if (sites.length === 0) return []
 
   const ts = new Date().toLocaleTimeString()
-  console.log(`[${ts}] 订单拉取: 开始 ${sites.length} 个活跃站点...`)
+  console.log(`[${ts}] 订单拉取(增量): ${sites.length} 个站点...`)
 
   const out: OrderPullSiteResult[] = []
 
   for (const site of sites) {
     try {
-      const pulled = await pullOrdersFromSite(site)
-      if (pulled > 0) {
-        console.log(`[${ts}]   ${site.name}: 新增 ${pulled} 个订单`)
-      }
-      out.push({ site_id: site.id, site_name: site.name, pulled })
+      const { pulled, updated } = await pullOrdersFromSite(site)
+      if (pulled > 0) console.log(`[${ts}]   ${site.name}: 新增 ${pulled} 条`)
+      if (updated > 0) console.log(`[${ts}]   ${site.name}: 更新 ${updated} 条`)
+      out.push({ site_id: site.id, site_name: site.name, pulled, updated })
     } catch (err: any) {
       const msg = err?.message || String(err)
       console.log(`[${ts}]   ${site.name}: 拉取失败 - ${msg}`)
-      out.push({ site_id: site.id, site_name: site.name, pulled: 0, error: msg })
+      out.push({ site_id: site.id, site_name: site.name, pulled: 0, updated: 0, error: msg })
     }
   }
 
   return out
 }
 
+/**
+ * 全部活跃站点（操作员/定时任务）
+ */
+export async function pollAllSites(): Promise<OrderPullSiteResult[]> {
+  const db = getDb()
+  const sites = db.all("SELECT * FROM sites WHERE status = 'active'") as any[]
+  return runPullForSites(sites)
+}
+
+/**
+ * 仅该分销商在 sites 上绑定的活跃站点
+ */
+export async function pollSitesForDistributor(distributorId: number): Promise<OrderPullSiteResult[]> {
+  const db = getDb()
+  const sites = db.all(
+    "SELECT * FROM sites WHERE status = 'active' AND distributor_id = ?",
+    [String(distributorId)]
+  ) as any[]
+  return runPullForSites(sites)
+}
+
 export function startOrderSync() {
+  if (!ORDER_INBOUND_FROM_WOO_ENABLED) {
+    console.log('订单从 Woo 入站已关闭（未设置 ORDER_INBOUND_FROM_WOO=1），不启动定时拉单')
+    return
+  }
   const hours = POLL_INTERVAL / 1000 / 60 / 60
-  console.log(`订单自动同步已启动 (约每 ${hours} 小时整站拉取一次；进入订单页也会立即拉取)`)
+  console.log(`订单自动同步: 每 ${hours}h 全站增量拉取（modified_after 游标）`)
   pollAllSites().catch(() => {})
   timer = setInterval(() => { pollAllSites().catch(() => {}) }, POLL_INTERVAL)
 }

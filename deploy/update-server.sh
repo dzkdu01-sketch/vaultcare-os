@@ -50,8 +50,20 @@ else
 fi
 
 export VAULT_OS11_ROOT="$ROOT"
-echo "==> 重启 PM2"
-pm2 restart vault-os11-api
+cd "$ROOT"
+echo "==> 启动/重启 PM2 (vault-os11-api)"
+if pm2 describe vault-os11-api &>/dev/null; then
+  pm2 restart vault-os11-api
+else
+  echo "   (进程尚不存在，首次执行 pm2 start)"
+  pm2 start deploy/ecosystem.config.cjs
+fi
 pm2 save
 
 echo "==> 完成。建议验证: curl -s http://127.0.0.1:3002/api/health"
+echo ""
+echo "提示: 若执行「pm2 startup」时出现「Init system not found」或类似信息，多表示"
+echo "      当前环境无传统 init（如 systemd），PM2 无法自动写开机自启。重启 VPS 后若"
+echo "      需恢复 API，可手动执行: cd $ROOT && pm2 resurrect"
+echo "      或视主机/Spaceship 文档使用 crontab @reboot、面板进程守护等方案。"
+echo ""

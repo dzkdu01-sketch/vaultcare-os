@@ -6,7 +6,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import initSqlJs from 'sql.js'
+import Database from 'better-sqlite3'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -31,15 +31,13 @@ function loadOverrides() {
   }
 }
 
-async function loadPriceMap() {
+function loadPriceMap() {
   if (!fs.existsSync(DB_PATH)) {
     console.warn('DB not found:', DB_PATH)
     return new Map()
   }
-  const SQL = await initSqlJs()
-  const buf = fs.readFileSync(DB_PATH)
-  const db = new SQL.Database(buf)
-  const rows = db.exec(
+  const db = new Database(DB_PATH, { readonly: true })
+  const rowList = db.prepare(
     `SELECT supplier_code, sale_price FROM (
        SELECT ps.supplier_code AS supplier_code, p.sale_price AS sale_price
        FROM product_supplier ps
@@ -50,13 +48,12 @@ async function loadPriceMap() {
        JOIN products p ON p.id = sp.mapped_product_id
        WHERE sp.mapped_product_id IS NOT NULL
      )`,
-  )
+  ).all()
   db.close()
   const map = new Map()
-  if (!rows.length || !rows[0].values) return map
-  for (const [code, price] of rows[0].values) {
-    const c = String(code).trim().toUpperCase()
-    const p = Number(price)
+  for (const row of rowList) {
+    const c = String(row.supplier_code).trim().toUpperCase()
+    const p = Number(row.sale_price)
     if (Number.isNaN(p) || p <= 0) continue
     if (!map.has(c)) map.set(c, p)
   }
@@ -88,7 +85,7 @@ function extractPartSuffix(name) {
 }
 
 async function main() {
-  const priceMap = await loadPriceMap()
+  const priceMap = loadPriceMap()
   const overrides = loadOverrides()
   for (const [code, p] of overrides) priceMap.set(code, p)
   if (overrides.size) console.log('已加载手动覆盖价格:', overrides.size, '条 (', OVERRIDE_JSON, ')\n')

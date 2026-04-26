@@ -1,5 +1,4 @@
-import initSqlJs from 'sql.js'
-type SqlJsDatabase = any
+import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -16,74 +15,45 @@ export interface DbWrapper {
 
 let wrapper: DbWrapper | null = null
 
-function createWrapper(raw: SqlJsDatabase): DbWrapper {
-  function save() {
-    const data = raw.export()
-    const dir = path.dirname(DB_PATH)
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(DB_PATH, Buffer.from(data))
-  }
+type SqliteDb = InstanceType<typeof Database>
 
+/** 底层连接，供 withTransaction 使用；在 initDb 完成前为 null。 */
+let backingDb: SqliteDb | null = null
+
+function createWrapper(db: SqliteDb): DbWrapper {
   return {
     run(sql: string, params: unknown[] = []) {
-      raw.run(sql, params as any)
-      save()
+      db.prepare(sql).run(...(params as []))
     },
     get(sql: string, params: unknown[] = []) {
-      const stmt = raw.prepare(sql)
-      stmt.bind(params as any)
-      let result: Record<string, unknown> | undefined
-      if (stmt.step()) {
-        result = stmt.getAsObject() as Record<string, unknown>
-      }
-      stmt.free()
-      return result
+      return db.prepare(sql).get(...(params as [])) as Record<string, unknown> | undefined
     },
     all(sql: string, params: unknown[] = []) {
-      const stmt = raw.prepare(sql)
-      stmt.bind(params as any)
-      const results: Record<string, unknown>[] = []
-      while (stmt.step()) {
-        results.push(stmt.getAsObject() as Record<string, unknown>)
-      }
-      stmt.free()
-      return results
+      return db.prepare(sql).all(...(params as [])) as Record<string, unknown>[]
     },
     exec(sql: string) {
-      raw.exec(sql)
-      save()
-    }
+      db.exec(sql)
+    },
   }
 }
 
-export async function initDb(): Promise<DbWrapper> {
-  const SQL = await initSqlJs()
+function addColumnIfMissing(db: SqliteDb, table: string, column: string, definition: string) {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+  if (rows.some((r) => r.name === column)) return
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+}
 
-  let raw: SqlJsDatabase
-  if (fs.existsSync(DB_PATH)) {
-    const data = fs.readFileSync(DB_PATH)
-    raw = new SQL.Database(data)
-  } else {
-    raw = new SQL.Database()
-  }
+function openAndMigrate(): SqliteDb {
+  const dir = path.dirname(DB_PATH)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
-  raw.run('PRAGMA journal_mode = WAL')
-  raw.run('PRAGMA foreign_keys = ON')
+  const db = new Database(DB_PATH)
+  backingDb = db
 
-  function addColumnIfMissing(table: string, column: string, definition: string) {
-    const stmt = raw.prepare(`PRAGMA table_info(${table})`)
-    let found = false
-    while (stmt.step()) {
-      const row = stmt.getAsObject() as Record<string, unknown>
-      if (row.name === column) { found = true; break }
-    }
-    stmt.free()
-    if (!found) {
-      raw.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
-    }
-  }
+  db.pragma('journal_mode = WAL')
+  db.pragma('foreign_keys = ON')
 
-  raw.exec(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -198,24 +168,9 @@ export async function initDb(): Promise<DbWrapper> {
     INSERT OR IGNORE INTO settings (key, value) VALUES ('exchange_rate', '1.95');
   `)
 
-  {
-    const stmt = raw.prepare('PRAGMA table_info(products)')
-    let hasCatalogIn = false
-    while (stmt.step()) {
-      const row = stmt.getAsObject() as Record<string, unknown>
-      if (row.name === 'catalog_in') {
-        hasCatalogIn = true
-        break
-      }
-    }
-    stmt.free()
-    if (!hasCatalogIn) {
-      raw.run('ALTER TABLE products ADD COLUMN catalog_in INTEGER NOT NULL DEFAULT 0')
-    }
-  }
+  addColumnIfMissing(db, 'products', 'catalog_in', 'INTEGER NOT NULL DEFAULT 0')
 
-  // --- Migration: distributors, operators, order_number_seq, order_status_log ---
-  raw.exec(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS distributors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -257,33 +212,30 @@ export async function initDb(): Promise<DbWrapper> {
     );
   `)
 
-  // --- Migration: add columns to sites ---
-  addColumnIfMissing('sites', 'distributor_id', 'TEXT')
-  addColumnIfMissing('sites', 'webhook_secret', 'TEXT')
-  addColumnIfMissing('distributors', 'site_display_name', 'TEXT')
+  addColumnIfMissing(db, 'sites', 'distributor_id', 'TEXT')
+  addColumnIfMissing(db, 'sites', 'webhook_secret', 'TEXT')
+  addColumnIfMissing(db, 'distributors', 'site_display_name', 'TEXT')
 
-  // --- Migration: add columns to orders ---
-  addColumnIfMissing('orders', 'distributor_id', 'INTEGER')
-  addColumnIfMissing('orders', 'source', "TEXT DEFAULT 'woo_webhook'")
-  addColumnIfMissing('orders', 'created_by_role', "TEXT DEFAULT 'system'")
-  addColumnIfMissing('orders', 'created_by_id', 'INTEGER')
-  addColumnIfMissing('orders', 'customer_city', 'TEXT')
-  addColumnIfMissing('orders', 'customer_address', 'TEXT')
-  addColumnIfMissing('orders', 'order_status', "TEXT DEFAULT 'unconfirmed'")
-  addColumnIfMissing('orders', 'delivery_status', "TEXT DEFAULT 'not_submitted'")
-  addColumnIfMissing('orders', 'item_summary', 'TEXT')
-  addColumnIfMissing('orders', 'expedited_fee', 'REAL DEFAULT 0')
-  addColumnIfMissing('orders', 'note', 'TEXT')
-  addColumnIfMissing('orders', 'woo_raw_data', 'TEXT')
-  addColumnIfMissing('orders', 'reviewed_by', 'INTEGER')
-  addColumnIfMissing('orders', 'settlement_amount', 'REAL')
-  addColumnIfMissing('orders', 'settlement_status', 'TEXT')
-  addColumnIfMissing('orders', 'settlement_note', 'TEXT')
-  addColumnIfMissing('orders', 'routed_supplier_id', 'INTEGER')
-  addColumnIfMissing('orders', 'routing_reason', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'distributor_id', 'INTEGER')
+  addColumnIfMissing(db, 'orders', 'source', "TEXT DEFAULT 'woo_webhook'")
+  addColumnIfMissing(db, 'orders', 'created_by_role', "TEXT DEFAULT 'system'")
+  addColumnIfMissing(db, 'orders', 'created_by_id', 'INTEGER')
+  addColumnIfMissing(db, 'orders', 'customer_city', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'customer_address', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'order_status', "TEXT DEFAULT 'unconfirmed'")
+  addColumnIfMissing(db, 'orders', 'delivery_status', "TEXT DEFAULT 'not_submitted'")
+  addColumnIfMissing(db, 'orders', 'item_summary', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'expedited_fee', 'REAL DEFAULT 0')
+  addColumnIfMissing(db, 'orders', 'note', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'woo_raw_data', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'reviewed_by', 'INTEGER')
+  addColumnIfMissing(db, 'orders', 'settlement_amount', 'REAL')
+  addColumnIfMissing(db, 'orders', 'settlement_status', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'settlement_note', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'routed_supplier_id', 'INTEGER')
+  addColumnIfMissing(db, 'orders', 'routing_reason', 'TEXT')
 
-  // --- Migration: new indexes ---
-  raw.exec(`
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_orders_distributor ON orders(distributor_id);
     CREATE INDEX IF NOT EXISTS idx_orders_order_status ON orders(order_status);
     CREATE INDEX IF NOT EXISTS idx_orders_delivery_status ON orders(delivery_status);
@@ -299,15 +251,26 @@ export async function initDb(): Promise<DbWrapper> {
     );
   `)
 
-  const dir = path.dirname(DB_PATH)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(DB_PATH, Buffer.from(raw.export()))
+  return db
+}
 
-  wrapper = createWrapper(raw)
+export async function initDb(): Promise<DbWrapper> {
+  if (wrapper) return Promise.resolve(wrapper)
+  const db = openAndMigrate()
+  wrapper = createWrapper(db)
   return wrapper
 }
 
 export function getDb(): DbWrapper {
   if (!wrapper) throw new Error('Database not initialized. Call initDb() first.')
   return wrapper
+}
+
+/**
+ * 在单次事务中执行同步回调（例如订单拉取中连续多条写入），
+ * 减少 fsync 次数。回调内须使用 getDb() 与平时相同；勿在回调内 await。
+ */
+export function withTransaction<T>(fn: () => T): T {
+  if (!backingDb) throw new Error('Database not initialized. Call initDb() first.')
+  return backingDb.transaction(fn)() as T
 }

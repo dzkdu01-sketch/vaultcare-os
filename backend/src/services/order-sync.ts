@@ -1,4 +1,4 @@
-import { getDb, withTransaction, type DbWrapper } from '../db/index.js'
+import { getDb, type DbWrapper } from '../db/index.js'
 import {
   type WooOrder,
   extractCustomerWhatsappFromWooOrder,
@@ -77,7 +77,9 @@ async function pullOrdersFromSite(site: any): Promise<PullCount> {
   let pulled = 0
   let updated = 0
 
-  withTransaction(() => {
+  // 用 BEGIN/COMMIT 包裹写入，不依赖 db/index 的 withTransaction，避免旧部署缺导出导致 tsc 失败
+  db.exec('BEGIN')
+  try {
     for (const order of orders) {
       const customerName = [order.billing?.first_name, order.billing?.last_name].filter(Boolean).join(' ')
       const whatsapp = extractCustomerWhatsappFromWooOrder(order)
@@ -137,7 +139,11 @@ async function pullOrdersFromSite(site: any): Promise<PullCount> {
         }
       } catch { /* skip individual order errors */ }
     }
-  })
+    db.exec('COMMIT')
+  } catch (e) {
+    try { db.exec('ROLLBACK') } catch { /* ignore */ }
+    throw e
+  }
 
   if (orders.length > 0) {
     const maxT = Math.max(...orders.map(o => new Date(o.date_modified).getTime()))

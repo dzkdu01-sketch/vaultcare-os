@@ -15,7 +15,14 @@ import {
 } from '../catalogTags.js'
 import { getDb } from '../db/index.js'
 import { buildCatalogBrochureImage } from '../services/catalogPng.js'
-import { createProduct, updateProduct, findProductBySku, fetchAllProducts, WooSite } from '../services/woo-client.js'
+import {
+  createProduct,
+  findProductBySku,
+  fetchAllProducts,
+  resolveProductCategoryId,
+  updateProduct,
+  WooSite,
+} from '../services/woo-client.js'
 
 export const productRouter = Router()
 
@@ -673,7 +680,7 @@ async function syncProductToSites(
   const trimmed = rawImages.map((s) => String(s).trim()).filter(Boolean)
   const { ok: imageSrcs, skipped: skipped_images } = await filterReachableImageUrls(trimmed)
 
-  const wooProduct = {
+  const basePayload = {
     name: product.name,
     sku: product.sku,
     regular_price: String(product.regular_price || 0),
@@ -681,7 +688,6 @@ async function syncProductToSites(
     short_description: product.short_description || '',
     description: product.description || '',
     images: imageSrcs.map((src: string) => ({ src })),
-    categories: product.category ? [{ name: product.category }] : [],
     tags: JSON.parse(product.tags || '[]').map((t: string) => ({ name: t })),
     status: product.status === 1 ? 'publish' : 'draft',
   }
@@ -690,6 +696,26 @@ async function syncProductToSites(
 
   for (const site of sites) {
     const wooSite: WooSite = { url: site.url, consumer_key: site.consumer_key, consumer_secret: site.consumer_secret }
+    const categoryCache = new Map<string, number>()
+    let categories: { id: number }[] = []
+    if (product.category && String(product.category).trim()) {
+      try {
+        const cid = await resolveProductCategoryId(wooSite, String(product.category), categoryCache)
+        if (cid != null) categories = [{ id: cid }]
+      } catch (err: any) {
+        db.run(
+          `INSERT INTO product_sync (product_id, site_id, sync_status, error)
+           VALUES (?, ?, 'failed', ?)
+           ON CONFLICT(product_id, site_id) DO UPDATE SET sync_status = 'failed', error = ?`,
+          [product.id, site.id, err.message, err.message]
+        )
+        results.push({ site_id: site.id, site_name: site.name, success: false, error: `Woo 分类: ${err.message}` })
+        continue
+      }
+    }
+
+    const wooProduct = { ...basePayload, categories }
+
     try {
       const existing = db.get('SELECT * FROM product_sync WHERE product_id = ? AND site_id = ?', [product.id, site.id]) as any
 

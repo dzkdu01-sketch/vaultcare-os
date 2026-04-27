@@ -18,9 +18,18 @@ export interface WooProduct {
   description?: string
   short_description?: string
   images?: Array<{ src: string; name?: string }>
-  categories?: Array<{ id?: number; name: string }>
-  tags?: Array<{ id?: number; name: string }>
+  /**
+   * 从 WC 拉取时常见 `{ id, name, slug }`；写入时须带 **id**；仅传 `{ name }` 对商品常无效。
+   */
+  categories?: Array<{ id: number; name?: string; slug?: string }>
+  tags?: Array<{ id?: number; name?: string; slug?: string }>
   status?: string
+}
+
+export interface WooProductCategoryTerm {
+  id: number
+  name: string
+  slug?: string
 }
 
 export interface WooOrder {
@@ -139,6 +148,55 @@ export async function updateProduct(site: WooSite, wooId: number, product: Parti
 export async function findProductBySku(site: WooSite, sku: string): Promise<WooProduct | null> {
   const results = await wooFetch<WooProduct[]>(site, `/products?sku=${encodeURIComponent(sku)}`)
   return results.length > 0 ? results[0] : null
+}
+
+/**
+ * 将中台分类「名称」解析为 Woo **产品分类 term id**。
+ * WC REST 在 PUT/POST 商品时，categories 应使用 `{ id }`；只传 `name` 常会被静默忽略，前台一直 Uncategorized。
+ * 先按名称搜索，没有则 `POST /products/categories` 创建（需密钥具备写分类权限）。
+ */
+export async function resolveProductCategoryId(
+  site: WooSite,
+  name: string,
+  cache?: Map<string, number>,
+): Promise<number | null> {
+  const trimmed = (name || '').trim()
+  if (!trimmed) return null
+  const cacheKey = trimmed.toLowerCase()
+  if (cache?.has(cacheKey)) {
+    return cache.get(cacheKey)!
+  }
+  const list = await wooFetch<WooProductCategoryTerm[]>(
+    site,
+    `/products/categories?search=${encodeURIComponent(trimmed)}&per_page=100`,
+  )
+  const exact = list.find((c) => c.name && c.name.toLowerCase() === cacheKey)
+  if (exact?.id) {
+    cache?.set(cacheKey, exact.id)
+    return exact.id
+  }
+  try {
+    const created = await wooFetch<WooProductCategoryTerm>(site, '/products/categories', {
+      method: 'POST',
+      body: JSON.stringify({ name: trimmed }),
+    })
+    if (created?.id) {
+      cache?.set(cacheKey, created.id)
+      return created.id
+    }
+  } catch (e) {
+    const after = await wooFetch<WooProductCategoryTerm[]>(
+      site,
+      `/products/categories?search=${encodeURIComponent(trimmed)}&per_page=100`,
+    )
+    const again = after.find((c) => c.name && c.name.toLowerCase() === cacheKey)
+    if (again?.id) {
+      cache?.set(cacheKey, again.id)
+      return again.id
+    }
+    throw e
+  }
+  return null
 }
 
 /** 分页拉取产品（query 不含前导 ?） */

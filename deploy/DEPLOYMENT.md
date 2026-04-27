@@ -53,10 +53,10 @@
 
 ### 仅更新代码 / 发版
 
-- [ ] 在服务器项目根目录 **`git pull`**。  
+- [ ] 在服务器项目根目录 **`git pull`**；若因**本地有未提交修改**而失败，见 **[`DEPLOY-LESSONS-ZH.md` §9](DEPLOY-LESSONS-ZH.md)**。  
 - [ ] **`frontend`**：`npm ci && npm run build`。  
-- [ ] **`backend`**：`npm ci && npm run build`。  
-- [ ] **`pm2 restart vault-os11-api`**（名称以 `pm2 list` 为准）。  
+- [ ] **`backend`**：`npm ci && npm run build`；若 **`better-sqlite3` / node-gyp** 装失败，见 **[§10](DEPLOY-LESSONS-ZH.md)**（先装 `build-essential` 等）。  
+- [ ] **PM2**：优先 **`bash deploy/update-server.sh`**，或 `restart` 已存在进程；**首次**无进程时 **`pm2 start deploy/ecosystem.config.cjs`**，名 **`vault-os11-api`**（见 **[§11](DEPLOY-LESSONS-ZH.md)**）。  
 - [ ] **`nginx -t && systemctl reload nginx`**（仅当改动了 Nginx 配置时必做）。
 
 ### 同步本地数据库到 VPS（可选）

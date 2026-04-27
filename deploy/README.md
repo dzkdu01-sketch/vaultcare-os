@@ -110,14 +110,25 @@ nginx -t && systemctl reload nginx
 
 ## 六、如何更新版本
 
-在服务器上进入项目根目录，拉代码或覆盖新文件后：
+**推荐（一条命令，含 `git pull`、前后端构建、PM2 有则 `restart` 无则 `start`、`pm2 save`）**：
+
+```bash
+bash /var/www/vault-os1.1/deploy/update-server.sh
+```
+
+若 Nginx 配置未改，**不必**每次 `nginx reload`。仅当**改了站点配置**时才执行：`nginx -t && systemctl reload nginx`（以你主机是否有 systemd 为准）。
+
+**手动分步**（与脚本做的事等价；PM2 进程名在 `deploy/ecosystem.config.cjs` 里，当前为 **`vault-os11-api`**，不要用错成带点的名字）：
 
 ```bash
 cd /var/www/vault-os1.1/frontend && npm ci && npm run build
 cd /var/www/vault-os1.1/backend && npm ci && npm run build
-pm2 restart vault-os11-api
-sudo nginx -t && sudo systemctl reload nginx
+cd /var/www/vault-os1.1
+pm2 describe vault-os11-api &>/dev/null && pm2 restart vault-os11-api || (export VAULT_OS11_ROOT=/var/www/vault-os1.1 && pm2 start deploy/ecosystem.config.cjs)
+pm2 save
 ```
+
+**`git pull` 失败、或 `npm ci` 报 `better-sqlite3` / node-gyp** 时，见 **[`deploy/DEPLOY-LESSONS-ZH.md`](DEPLOY-LESSONS-ZH.md) §9–§10**。
 
 ---
 
@@ -174,7 +185,7 @@ npm run dev
 pm2 stop vault-os11-api
 ```
 
-（若进程名是 `vault-os1.1-api`，改成对应名字。）
+（**当前**仓库约定进程名为 **`vault-os11-api`**；以 `pm2 list` 为准。）
 
 ### 备份服务器上旧库（强烈建议）
 

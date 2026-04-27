@@ -33,3 +33,13 @@ export function linesToTaxonomyJson(lines: string): string {
     .filter(Boolean)
   return JSON.stringify(items)
 }
+
+/**
+ * 当商品已有 category，但该字符串不在「管理端配置的分类列表」里时，
+ * 浏览器 `<select value>` 会无匹配行而显示为空白。把当前值补成一项即可。
+ */
+export function categoryOrphanInList(allowed: string[], current: string | undefined | null): string | null {
+  const c = (current ?? '').trim()
+  if (!c) return null
+  return allowed.includes(c) ? null : c
+}

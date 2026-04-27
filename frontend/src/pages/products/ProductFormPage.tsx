@@ -6,6 +6,7 @@ import { applyCatalogTagToggle, dedupeGenderCatalogTags, tagKeyEquals } from '..
 import {
   DEFAULT_PRODUCT_CATEGORIES,
   DEFAULT_PRODUCT_TAGS,
+  categoryOrphanInList,
   parseTaxonomyJson,
 } from '../../lib/productTaxonomy'
 import { usePageHeader } from '../../context/PageHeaderContext'
@@ -542,8 +543,14 @@ export function ProductFormPage() {
                     value={form.category || ''}
                     onChange={e => set('category', e.target.value)}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    title={categoryOrphanInList(categories, form.category) ? '当前分类不在「设置」分类列表中，可仍保存；建议在设置中把该分类加入列表或改选一项' : undefined}
                   >
                     <option value="">选择分类</option>
+                    {categoryOrphanInList(categories, form.category) && (
+                      <option value={form.category}>
+                        {form.category}（未在管理分类列表，请到设置中核对或改选）
+                      </option>
+                    )}
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>

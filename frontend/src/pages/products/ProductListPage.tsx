@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CATALOG_TAG_HER, CATALOG_TAG_HIM, hasGenderCatalogTag, normalizeCatalogTagNames } from '../../lib/catalogTags'
-import { DEFAULT_PRODUCT_CATEGORIES, parseTaxonomyJson } from '../../lib/productTaxonomy'
+import { categoryOrphanInList, DEFAULT_PRODUCT_CATEGORIES, parseTaxonomyJson } from '../../lib/productTaxonomy'
 import { ApiError } from '../../services/api-client'
 import { productApi, settingsApi, siteApi } from '../../services/app-services'
 import type { Product, Pagination, Site, SyncResult } from '../../services/types'
@@ -874,8 +874,12 @@ export function ProductListPage() {
                         onChange={e => { const v = e.target.value; setEditValue(v); saveCell(v) }}
                         onBlur={() => void saveCell()}
                         className="w-full rounded border border-primary-border bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        title={categoryOrphanInList(categories, String(editValue)) ? '当前值不在管理分类列表中' : undefined}
                       >
                         <option value="">--</option>
+                        {categoryOrphanInList(categories, String(editValue)) && (
+                          <option value={String(editValue)}>{String(editValue)}（未在列表）</option>
+                        )}
                         {categories.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     ) : (

@@ -1,9 +1,9 @@
-# One-click deploy from Windows: stop PM2 -> optional backup -> upload vaultcare.db -> upload update-server.sh -> run remote update.
+# One-click deploy from Windows: stop PM2 -> optional DB upload -> upload update-server.sh -> run remote update.
 # Requires: OpenSSH (ssh/scp), git push done, VPS root SSH.
 #
 #   .\scripts\deploy-full-to-vps.ps1
 #   .\scripts\deploy-full-to-vps.ps1 -SshPort 22
-#   .\scripts\deploy-full-to-vps.ps1 -SkipDb
+#   .\scripts\deploy-full-to-vps.ps1 -UploadDb
 #
 # First time: commit and push deploy/update-server.sh; this script uploads it each run before executing.
 #
@@ -15,6 +15,7 @@ param(
   [string] $RemoteRoot = "/var/www/vault-os1.1",
   [int] $SshPort = 22022,
   [string] $GitBranch = "main",
+  [switch] $UploadDb,
   [switch] $SkipDb,
   [switch] $NoBackup
 )
@@ -41,9 +42,20 @@ if (-not (Test-Path -LiteralPath $updateScriptLocal)) {
   exit 1
 }
 
-if (-not $SkipDb) {
+if ($UploadDb -and $SkipDb) {
+  Write-Error "Do not pass both -UploadDb and -SkipDb."
+  exit 1
+}
+
+$shouldUploadDb = $UploadDb.IsPresent
+if ($SkipDb) {
+  Write-Host "Note: -SkipDb is now redundant; default mode already skips DB upload." -ForegroundColor DarkYellow
+  $shouldUploadDb = $false
+}
+
+if ($shouldUploadDb) {
   if (-not (Test-Path -LiteralPath $dbLocal)) {
-    Write-Error "Local DB not found: $dbLocal - run backend locally once, or use -SkipDb."
+    Write-Error "Local DB not found: $dbLocal - run backend locally once, or remove -UploadDb."
     exit 1
   }
 }
@@ -51,19 +63,21 @@ if (-not $SkipDb) {
 Write-Host ""
 Write-Host "Confirm: git push origin $GitBranch is done; server will git pull." -ForegroundColor Yellow
 Write-Host "If ssh/scp asks for a password, type the VPS root password (nothing will echo). Use a real terminal if this hangs." -ForegroundColor Yellow
+Write-Host "Default mode is code-only deploy (DB will NOT be uploaded)." -ForegroundColor Yellow
+Write-Host "Use -UploadDb only when you explicitly want to overwrite VPS database." -ForegroundColor Yellow
 Write-Host ""
 
 Write-Host "==> [1/5] pm2 stop vault-os11-api" -ForegroundColor Cyan
 Invoke-Ssh "pm2 stop vault-os11-api"
 
-if (-not $SkipDb -and -not $NoBackup) {
+if ($shouldUploadDb -and -not $NoBackup) {
   Write-Host "==> [2/5] backup remote vaultcare.db if present" -ForegroundColor Cyan
   $ts = Get-Date -Format "yyyyMMddHHmmss"
   $bakCmd = 'test -f ' + $RemoteRoot + '/backend/data/vaultcare.db && cp ' + $RemoteRoot + '/backend/data/vaultcare.db ' + $RemoteRoot + '/backend/data/vaultcare.db.bak.' + $ts + ' || true'
   Invoke-Ssh $bakCmd
 }
 
-if (-not $SkipDb) {
+if ($shouldUploadDb) {
   Write-Host "==> [3/5] scp vaultcare.db (password if prompted)" -ForegroundColor Cyan
   $remoteDb = "root@${VpsHost}:${RemoteRoot}/backend/data/vaultcare.db"
   if ($SshPort -ne 22) {
@@ -73,7 +87,7 @@ if (-not $SkipDb) {
   }
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } else {
-  Write-Host "==> [3/5] skip DB (-SkipDb)" -ForegroundColor DarkGray
+  Write-Host "==> [3/5] skip DB upload (default code-only deploy)" -ForegroundColor DarkGray
 }
 
 Write-Host "==> [4/5] scp deploy/update-server.sh" -ForegroundColor Cyan

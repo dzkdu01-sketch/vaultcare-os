@@ -14,7 +14,7 @@
 2. **VPS 网页终端 / SSH**
    - [ ] `cd /var/www/vault-os1.1`
    - [ ] `git status -sb`：不应长期 `behind` 于 `origin/main`；若落后，先**能拉下代码**再构建（见下文 **§9**）。
-   - [ ] 执行 `bash deploy/update-server.sh`（或本机用 `scripts/deploy-full-to-vps.ps1 -SkipDb`，需可交互输密码/密钥）。
+   - [ ] 执行 `bash deploy/update-server.sh`（或本机用 `scripts/deploy-full-to-vps.ps1`；默认仅代码。仅在需要覆盖数据库时加 `-UploadDb`。需可交互输密码/密钥）。
    - [ ] 若 `backend` 下 **`npm ci` / `npm run build` 报 `better-sqlite3`、node-gyp 相关错**，先按 **§10** 装系统依赖再重装 `node_modules`。
    - [ ] 脚本**结尾无 error**；`npm` 的 warning/deprecated 多数可忽略，**`error` / `ELIFECYCLE` 要处理**。
 

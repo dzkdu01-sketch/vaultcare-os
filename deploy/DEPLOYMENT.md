@@ -19,7 +19,7 @@
 | `deploy/nginx-ip.conf` | Nginx 模板（HTTP + 静态 + `/api` 反代） |
 | `deploy/ecosystem.config.cjs` | PM2 配置（进程名 **`vault-os11-api`**） |
 | `deploy/update-server.sh` | VPS 上执行：`git pull` + 前后端构建 + `pm2 restart` |
-| `scripts/deploy-full-to-vps.ps1` | **本机一键**：停 PM2 → 上传 DB → 上传本脚本并执行 `update-server.sh` |
+| `scripts/deploy-full-to-vps.ps1` | **本机一键（默认仅代码）**：停 PM2 →（可选上传 DB）→ 上传本脚本并执行 `update-server.sh` |
 | `scripts/sync-db-to-vps.ps1` | 仅上传 `vaultcare.db`（手动分步时用） |
 | `scripts/purge-orders-on-vps.ps1` | **仅 Windows 本机**：SSH 调远端执行清空（见下，勿把 `.ps1` 拷到 Linux 里执行） |
 | `scripts/purge-orders-on-vps.sh` | **在 VPS 的 bash 里执行**：`bash /var/www/vault-os1.1/scripts/purge-orders-on-vps.sh`（网页终端、SSH 均可） |
@@ -103,12 +103,12 @@ pm2 list
 
 ---
 
-## 一键部署（本机 Windows：代码 + 数据库）
+## 一键部署（本机 Windows：默认仅代码）
 
 1. 本机 **`git push origin main`**（或你使用的分支，与脚本 `-GitBranch` 一致）。  
 2. 在仓库根目录执行：`.\scripts\deploy-full-to-vps.ps1`（非 22 端口加 `-SshPort`）。  
-3. 脚本顺序：**`pm2 stop`** →（可选）远端备份旧库 → **`scp` 本机 `vaultcare.db`** → **`scp` `deploy/update-server.sh`** → 在 VPS 上 **`bash deploy/update-server.sh`**（内含 `git pull`、构建、重启 PM2）。  
-4. 仅更新代码、不同步数据库：`.\scripts\deploy-full-to-vps.ps1 -SkipDb`。
+3. 默认顺序：**`pm2 stop`** →（默认跳过 DB 上传）→ **`scp` `deploy/update-server.sh`** → 在 VPS 上 **`bash deploy/update-server.sh`**（内含 `git pull`、构建、重启 PM2）。  
+4. 需要覆盖 VPS 数据库时，显式执行：`.\scripts\deploy-full-to-vps.ps1 -UploadDb`（会先备份远端旧库，除非加 `-NoBackup`）。
 
 **注意**：`ssh` / `scp` 会多次询问 **VPS root 密码**（未配置 SSH 密钥时）。请在 **本机可交互的 PowerShell / Windows 终端** 里运行该脚本；在自动化/无TTY 环境里运行会像「卡住」一样一直等密码。配置好 **SSH 公钥登录** 后可免密、适合脚本。
 
@@ -116,7 +116,7 @@ pm2 list
 
 ## 建议的发布顺序（更新发版）
 
-**方式 A（一键）**：本机 `git push` → `.\scripts\deploy-full-to-vps.ps1` → 浏览器验收。
+**方式 A（一键）**：本机 `git push` → `.\scripts\deploy-full-to-vps.ps1`（默认仅代码）→ 浏览器验收。若确需同步数据库，再加 `-UploadDb`。
 
 **方式 B（手动）**：1. 读 **本文 checklist** → 2. 服务器 **`git pull`** → 3. 构建 **frontend + backend** → 4. **PM2 restart** → 5. 执行 **验证命令** → 6. 浏览器验收；数据库见上文「同步本地数据库」或 `sync-db-to-vps.ps1`。
 

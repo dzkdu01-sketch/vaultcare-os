@@ -32,6 +32,57 @@ export interface WooProductCategoryTerm {
   slug?: string
 }
 
+export interface WooProductTagTerm {
+  id: number
+  name: string
+  slug?: string
+}
+
+function normalizeCategorySlugCandidate(input: string): string {
+  const trimmed = input.trim()
+  if (!trimmed) return ''
+  const slug = trimmed
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' ')
+    .replace(/['"]/g, '')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/_/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || trimmed.toLowerCase()
+}
+
+function parseTermExistsResourceId(err: unknown): number | null {
+  const msg = err instanceof Error ? err.message : String(err)
+  const m = msg.match(/"resource_id"\s*:\s*(\d+)/)
+  if (!m) return null
+  const id = Number.parseInt(m[1], 10)
+  return Number.isFinite(id) ? id : null
+}
+
+async function findCategoryBySlug(site: WooSite, slug: string): Promise<WooProductCategoryTerm | null> {
+  const list = await wooFetch<WooProductCategoryTerm[]>(
+    site,
+    `/products/categories?slug=${encodeURIComponent(slug)}&per_page=100`,
+  )
+  const target = slug.toLowerCase()
+  const exact = list.find((c) => (c.slug || '').toLowerCase() === target)
+  return exact || null
+}
+
+async function findTagBySlug(site: WooSite, slug: string): Promise<WooProductTagTerm | null> {
+  const list = await wooFetch<WooProductTagTerm[]>(
+    site,
+    `/products/tags?slug=${encodeURIComponent(slug)}&per_page=100`,
+  )
+  const target = slug.toLowerCase()
+  const exact = list.find((t) => (t.slug || '').toLowerCase() === target)
+  return exact || null
+}
+
 export interface WooOrder {
   id: number
   number: string
@@ -102,14 +153,42 @@ function authHeader(site: WooSite): string {
 
 async function wooFetch<T>(site: WooSite, endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${site.url.replace(/\/$/, '')}/wp-json/wc/v3${endpoint}`
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Authorization': authHeader(site),
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  })
+  const method = (options.method || 'GET').toUpperCase()
+  const startedAt = Date.now()
+  // [TEMP-DIAG] 同步失败根因定位：打印每次 Woo 请求的 URL/方法/耗时/错误详情
+  console.log(`[wooFetch] → ${method} ${url}`)
+  let res: Response
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': authHeader(site),
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    })
+  } catch (err: any) {
+    // undici 的 "fetch failed" 实际根因藏在 err.cause，必须打全才能定位
+    const cause = err?.cause
+    const causeInfo = cause && typeof cause === 'object' ? {
+      message: cause.message,
+      code: cause.code,         // e.g. ENOTFOUND / ETIMEDOUT / ECONNREFUSED
+      errno: cause.errno,
+      syscall: cause.syscall,   // e.g. getaddrinfo / connect
+      address: cause.address,   // 解析失败的域名
+      port: cause.port,
+      stack: cause.stack?.split('\n').slice(0, 3).join('\n'),
+    } : cause
+    console.error(`[wooFetch] ✗ FAILED ${method} ${url} (${Date.now() - startedAt}ms)`, {
+      errMessage: err?.message,
+      errCode: err?.code,
+      errName: err?.name,
+      cause: causeInfo,
+    })
+    throw err
+  }
+  const elapsed = Date.now() - startedAt
+  console.log(`[wooFetch] ← ${res.status} ${method} ${url} (${elapsed}ms)`)
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`WooCommerce API error ${res.status}: ${text}`)
@@ -162,40 +241,187 @@ export async function resolveProductCategoryId(
 ): Promise<number | null> {
   const trimmed = (name || '').trim()
   if (!trimmed) return null
-  const cacheKey = trimmed.toLowerCase()
-  if (cache?.has(cacheKey)) {
-    return cache.get(cacheKey)!
+  const nameKey = `name:${trimmed.toLowerCase()}`
+  if (cache?.has(nameKey)) {
+    return cache.get(nameKey)!
   }
+  const isLikelySlugInput = /^[a-z0-9_-]+$/i.test(trimmed)
+  const slugCandidates = new Set<string>()
+  if (isLikelySlugInput) slugCandidates.add(trimmed.toLowerCase().replace(/_/g, '-'))
+  const derivedSlug = normalizeCategorySlugCandidate(trimmed)
+  if (derivedSlug) slugCandidates.add(derivedSlug)
+
+  for (const slug of slugCandidates) {
+    const slugKey = `slug:${slug}`
+    if (cache?.has(slugKey)) return cache.get(slugKey)!
+  }
+
+  for (const slug of slugCandidates) {
+    const bySlug = await findCategoryBySlug(site, slug)
+    if (bySlug?.id) {
+      cache?.set(nameKey, bySlug.id)
+      cache?.set(`slug:${slug}`, bySlug.id)
+      return bySlug.id
+    }
+  }
+
   const list = await wooFetch<WooProductCategoryTerm[]>(
     site,
     `/products/categories?search=${encodeURIComponent(trimmed)}&per_page=100`,
   )
-  const exact = list.find((c) => c.name && c.name.toLowerCase() === cacheKey)
+  const exact = list.find((c) => {
+    const nameMatched = Boolean(c.name && c.name.toLowerCase() === trimmed.toLowerCase())
+    const slugMatched = Boolean(c.slug && slugCandidates.has(c.slug.toLowerCase()))
+    return nameMatched || slugMatched
+  })
   if (exact?.id) {
-    cache?.set(cacheKey, exact.id)
+    cache?.set(nameKey, exact.id)
+    if (exact.slug) cache?.set(`slug:${exact.slug.toLowerCase()}`, exact.id)
     return exact.id
   }
   try {
+    const createPayload =
+      isLikelySlugInput
+        ? { name: trimmed, slug: Array.from(slugCandidates)[0] }
+        : { name: trimmed }
     const created = await wooFetch<WooProductCategoryTerm>(site, '/products/categories', {
       method: 'POST',
-      body: JSON.stringify({ name: trimmed }),
+      body: JSON.stringify(createPayload),
     })
     if (created?.id) {
-      cache?.set(cacheKey, created.id)
+      cache?.set(nameKey, created.id)
+      if (created.slug) cache?.set(`slug:${created.slug.toLowerCase()}`, created.id)
       return created.id
     }
   } catch (e) {
+    const existedId = parseTermExistsResourceId(e)
+    if (existedId != null) {
+      cache?.set(nameKey, existedId)
+      for (const slug of slugCandidates) cache?.set(`slug:${slug}`, existedId)
+      return existedId
+    }
+    for (const slug of slugCandidates) {
+      const bySlug = await findCategoryBySlug(site, slug)
+      if (bySlug?.id) {
+        cache?.set(nameKey, bySlug.id)
+        cache?.set(`slug:${slug}`, bySlug.id)
+        return bySlug.id
+      }
+    }
     const after = await wooFetch<WooProductCategoryTerm[]>(
       site,
       `/products/categories?search=${encodeURIComponent(trimmed)}&per_page=100`,
     )
-    const again = after.find((c) => c.name && c.name.toLowerCase() === cacheKey)
+    const again = after.find((c) => {
+      const nameMatched = Boolean(c.name && c.name.toLowerCase() === trimmed.toLowerCase())
+      const slugMatched = Boolean(c.slug && slugCandidates.has(c.slug.toLowerCase()))
+      return nameMatched || slugMatched
+    })
     if (again?.id) {
-      cache?.set(cacheKey, again.id)
+      cache?.set(nameKey, again.id)
+      if (again.slug) cache?.set(`slug:${again.slug.toLowerCase()}`, again.id)
       return again.id
     }
     throw e
   }
+  return null
+}
+
+/**
+ * 将中台标签名称/slug 解析为 Woo 产品标签 term id。
+ * 为了保证“覆盖同步”生效，商品写入 tags 时应使用 `{ id }`，而不是仅 `{ name }`。
+ */
+export async function resolveProductTagId(
+  site: WooSite,
+  nameOrSlug: string,
+  cache?: Map<string, number>,
+): Promise<number | null> {
+  const trimmed = (nameOrSlug || '').trim()
+  if (!trimmed) return null
+  const nameKey = `name:${trimmed.toLowerCase()}`
+  if (cache?.has(nameKey)) return cache.get(nameKey)!
+
+  const isLikelySlugInput = /^[a-z0-9_-]+$/i.test(trimmed)
+  const slugCandidates = new Set<string>()
+  if (isLikelySlugInput) slugCandidates.add(trimmed.toLowerCase().replace(/_/g, '-'))
+  const derivedSlug = normalizeCategorySlugCandidate(trimmed)
+  if (derivedSlug) slugCandidates.add(derivedSlug)
+
+  for (const slug of slugCandidates) {
+    const slugKey = `slug:${slug}`
+    if (cache?.has(slugKey)) return cache.get(slugKey)!
+  }
+
+  for (const slug of slugCandidates) {
+    const bySlug = await findTagBySlug(site, slug)
+    if (bySlug?.id) {
+      cache?.set(nameKey, bySlug.id)
+      cache?.set(`slug:${slug}`, bySlug.id)
+      return bySlug.id
+    }
+  }
+
+  const list = await wooFetch<WooProductTagTerm[]>(
+    site,
+    `/products/tags?search=${encodeURIComponent(trimmed)}&per_page=100`,
+  )
+  const exact = list.find((t) => {
+    const nameMatched = Boolean(t.name && t.name.toLowerCase() === trimmed.toLowerCase())
+    const slugMatched = Boolean(t.slug && slugCandidates.has(t.slug.toLowerCase()))
+    return nameMatched || slugMatched
+  })
+  if (exact?.id) {
+    cache?.set(nameKey, exact.id)
+    if (exact.slug) cache?.set(`slug:${exact.slug.toLowerCase()}`, exact.id)
+    return exact.id
+  }
+
+  try {
+    const createPayload =
+      isLikelySlugInput
+        ? { name: trimmed, slug: Array.from(slugCandidates)[0] }
+        : { name: trimmed }
+    const created = await wooFetch<WooProductTagTerm>(site, '/products/tags', {
+      method: 'POST',
+      body: JSON.stringify(createPayload),
+    })
+    if (created?.id) {
+      cache?.set(nameKey, created.id)
+      if (created.slug) cache?.set(`slug:${created.slug.toLowerCase()}`, created.id)
+      return created.id
+    }
+  } catch (e) {
+    const existedId = parseTermExistsResourceId(e)
+    if (existedId != null) {
+      cache?.set(nameKey, existedId)
+      for (const slug of slugCandidates) cache?.set(`slug:${slug}`, existedId)
+      return existedId
+    }
+    for (const slug of slugCandidates) {
+      const bySlug = await findTagBySlug(site, slug)
+      if (bySlug?.id) {
+        cache?.set(nameKey, bySlug.id)
+        cache?.set(`slug:${slug}`, bySlug.id)
+        return bySlug.id
+      }
+    }
+    const after = await wooFetch<WooProductTagTerm[]>(
+      site,
+      `/products/tags?search=${encodeURIComponent(trimmed)}&per_page=100`,
+    )
+    const again = after.find((t) => {
+      const nameMatched = Boolean(t.name && t.name.toLowerCase() === trimmed.toLowerCase())
+      const slugMatched = Boolean(t.slug && slugCandidates.has(t.slug.toLowerCase()))
+      return nameMatched || slugMatched
+    })
+    if (again?.id) {
+      cache?.set(nameKey, again.id)
+      if (again.slug) cache?.set(`slug:${again.slug.toLowerCase()}`, again.id)
+      return again.id
+    }
+    throw e
+  }
+
   return null
 }
 

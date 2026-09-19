@@ -59,11 +59,11 @@
 - [ ] **PM2**：优先 **`bash deploy/update-server.sh`**，或 `restart` 已存在进程；**首次**无进程时 **`pm2 start deploy/ecosystem.config.cjs`**，名 **`vault-os11-api`**（见 **[§11](DEPLOY-LESSONS-ZH.md)**）。  
 - [ ] **`nginx -t && systemctl reload nginx`**（仅当改动了 Nginx 配置时必做）。
 
-### 同步本地数据库到 VPS（可选）
+### 同步本地数据库到 VPS（默认不要做）
 
-- [ ] 上传前在 VPS **`pm2 stop vault-os11-api`**（或实际进程名）。  
-- [ ] 使用 [`README.md` 第十节](README.md) 或 `scripts/sync-db-to-vps.ps1`；上传后 **`chmod` + `pm2 restart`**。  
-- [ ] 若 **`scp` 失败**：核对 root 密码、端口、多次失败后等待解封或换网络；可用 **WinSCP** 覆盖同一路径。
+- [ ] **发版只上代码。** 本机 `vaultcare.db` 含测试/过程数据，禁止用 `-UploadDb` 或 `sync-db-to-vps.ps1` 覆盖生产库。  
+- [ ] 服务器若也要清空订单/商品等过程数据：先 **`pm2 stop vault-os11-api`**，再 `cd backend && node scripts/wipe-operational-data.mjs`，然后重启 API。  
+- [ ] 仅在你明确要覆盖生产库时，才停 API 后用 `scripts/sync-db-to-vps.ps1`；上传后 **`chmod` + `pm2 restart`**。
 
 ---
 

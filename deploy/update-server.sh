@@ -46,7 +46,7 @@ if [[ -f "$DB_FILE" ]]; then
   chmod 644 "$DB_FILE"
   echo "==> 已设置数据库权限: $DB_FILE"
 else
-  echo "警告: 未找到 $DB_FILE（若需数据请先在本机上传 vaultcare.db 再执行一键部署）"
+  echo "未找到 $DB_FILE（正常：发版只上代码，首次启动会建空库。不要上传本机测试库。）"
 fi
 
 export VAULT_OS11_ROOT="$ROOT"

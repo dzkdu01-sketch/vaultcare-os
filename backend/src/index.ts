@@ -38,8 +38,8 @@ async function main() {
     res.json({ code: 200, message: 'ok', data: { status: 'healthy' } })
   })
 
-  app.listen(PORT, () => {
-    console.log(`Vaultcare API running on http://localhost:${PORT}`)
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`Vaultcare API running on http://0.0.0.0:${PORT}`)
     // 定时/启动时全站拉单默认关闭，减轻小机内存与对外请求，避免拖垮进程导致 Nginx 502。
     // 需要自动同步时：环境变量 ORDER_SYNC_ENABLED=true 后重启后端。
     if (process.env.ORDER_SYNC_ENABLED === 'true') {

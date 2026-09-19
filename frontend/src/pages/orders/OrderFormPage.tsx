@@ -4,6 +4,7 @@ import { orderApi, productApi, siteApi, distributorApi } from '../../services/ap
 import { getSessionUser } from '../../app/store/auth-store'
 import type { ExtendedOrder, OrderInput, Product, Site, Distributor } from '../../services/types'
 import { ProductSelector } from './ProductSelector'
+import { goodsTotal } from '../../lib/orderCopyTexts'
 
 type LineItem = {
   local_product_id?: string | number
@@ -36,10 +37,14 @@ export function OrderFormPage() {
   )
   const [siteId, setSiteId] = useState('')
   const [customerName, setCustomerName] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerWhatsapp, setCustomerWhatsapp] = useState('')
   const [customerCity, setCustomerCity] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
+  const [customerNote, setCustomerNote] = useState('')
+  const [websiteOrderNumber, setWebsiteOrderNumber] = useState('')
+  const [receivedAmount, setReceivedAmount] = useState<number | ''>('')
   const [orderStatus, setOrderStatus] = useState<'unconfirmed' | 'customer_confirmed'>('unconfirmed')
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   const [expeditedFee, setExpeditedFee] = useState(0)
@@ -55,10 +60,14 @@ export function OrderFormPage() {
       setDistributorId(order.distributor_id)
       setSiteId(order.site_id || '')
       setCustomerName(order.customer_name || '')
+      setCustomerEmail(order.customer_email || '')
       setCustomerPhone(order.customer_phone || '')
       setCustomerWhatsapp(order.customer_whatsapp || '')
       setCustomerCity((order as any).customer_city || '')
       setCustomerAddress((order as any).customer_address || '')
+      setCustomerNote(order.customer_note || '')
+      setWebsiteOrderNumber(order.website_order_number || '')
+      setReceivedAmount(order.received_amount ?? (Number(order.total) || ''))
       setExpeditedFee(order.expedited_fee || 0)
       setNote(isCopy ? '' : (order.note || ''))
       try {
@@ -87,7 +96,9 @@ export function OrderFormPage() {
     else setLoading(false)
   }, [id, copyFromId])
 
-  const totalPrice = lineItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) + expeditedFee
+  const itemGoodsTotal = goodsTotal(lineItems)
+  const totalPrice = receivedAmount === '' ? itemGoodsTotal : Number(receivedAmount) || 0
+  const discount = itemGoodsTotal - totalPrice
   const itemSummary = lineItems.map(item => `${item.name} x${item.quantity}`).join(', ')
 
   const filteredSites = sites.filter((s: any) =>
@@ -133,13 +144,17 @@ export function OrderFormPage() {
         distributor_id: distributorId,
         site_id: siteId || null,
         customer_name: customerName,
+        customer_email: customerEmail,
         customer_phone: customerPhone,
         customer_whatsapp: customerWhatsapp,
         customer_city: customerCity,
         customer_address: customerAddress,
+        customer_note: customerNote,
+        website_order_number: websiteOrderNumber,
+        received_amount: totalPrice,
         line_items: lineItems,
         item_summary: itemSummary,
-        expedited_fee: expeditedFee,
+        expedited_fee: 0,
         note,
         order_status: asDraft ? 'unconfirmed' : 'customer_confirmed',
       }
@@ -197,8 +212,8 @@ export function OrderFormPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Order number</label>
-            <input value={isEdit ? orderNumber : '自动生成'} disabled
-              className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-slate-50 text-slate-400" />
+            <input value={websiteOrderNumber} onChange={e => setWebsiteOrderNumber(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" />
           </div>
         </div>
       </div>
@@ -208,7 +223,7 @@ export function OrderFormPage() {
         <h3 className="font-medium text-slate-900 mb-4 flex items-center gap-2">
           <span className="bg-primary text-white text-xs px-2 py-0.5 rounded">Customer information</span>
         </h3>
-        <div className="grid grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">name <span className="text-red-500">*</span></label>
             <input value={customerName} onChange={e => setCustomerName(e.target.value)}
@@ -225,6 +240,11 @@ export function OrderFormPage() {
               className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" />
           </div>
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">email</label>
+            <input value={customerEmail} onChange={e => setCustomerEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">city</label>
             <input value={customerCity} onChange={e => setCustomerCity(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" />
@@ -233,6 +253,11 @@ export function OrderFormPage() {
         <div className="mb-4">
           <label className="block text-sm font-medium text-slate-700 mb-1">address</label>
           <input value={customerAddress} onChange={e => setCustomerAddress(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" />
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-slate-700 mb-1">客户备注</label>
+          <input value={customerNote} onChange={e => setCustomerNote(e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" />
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -337,25 +362,24 @@ export function OrderFormPage() {
 
       {/* Summary */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Item Summary</label>
-            <input value={itemSummary} disabled className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-slate-50 text-slate-500" />
+            <label className="block text-sm font-medium text-slate-700 mb-1">商品合计</label>
+            <input value={itemGoodsTotal.toFixed(2)} disabled className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-slate-50 text-slate-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Expedited Fee</label>
-            <input type="number" step="0.01" value={expeditedFee}
-              onChange={e => setExpeditedFee(parseFloat(e.target.value) || 0)}
+            <label className="block text-sm font-medium text-slate-700 mb-1">实收</label>
+            <input type="number" step="0.01" value={receivedAmount === '' ? itemGoodsTotal : receivedAmount}
+              onChange={e => setReceivedAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
               className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" />
+            {discount > 0.009 && (
+              <div className="mt-1 text-xs text-orange-600">已优惠 AED {discount.toFixed(2)}</div>
+            )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Total Price</label>
-            <input value={totalPrice.toFixed(2)} disabled className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-slate-50 font-medium" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">note</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">我的备注</label>
             <input value={note} onChange={e => setNote(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" placeholder="订单备注" />
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" />
           </div>
         </div>
       </div>

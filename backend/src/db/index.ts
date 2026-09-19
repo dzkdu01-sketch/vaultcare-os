@@ -303,6 +303,9 @@ function openAndMigrate(): SqliteDb {
   addColumnIfMissing(db, 'orders', 'routed_supplier_id', 'INTEGER')
   addColumnIfMissing(db, 'orders', 'routing_reason', 'TEXT')
   migrateOrdersSiteIdNullable(db)
+  addColumnIfMissing(db, 'orders', 'customer_note', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'received_amount', 'REAL')
+  addColumnIfMissing(db, 'orders', 'website_order_number', 'TEXT')
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_orders_distributor ON orders(distributor_id);

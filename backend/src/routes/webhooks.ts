@@ -56,6 +56,9 @@ webhookRouter.post('/woo/:siteId', (req: Request, res: Response) => {
       order.shipping?.address_1 || order.billing?.address_1,
       order.shipping?.address_2 || order.billing?.address_2,
     ].filter(Boolean).join(', ')
+    const customerNote = String(order.customer_note || '').trim()
+    const websiteOrderNumber = String(order.number || order.id || '')
+    const receivedAmount = Number(order.total) || 0
 
     // Check if order already exists
     const existing = db.get(
@@ -70,18 +73,18 @@ webhookRouter.post('/woo/:siteId', (req: Request, res: Response) => {
       }
       db.run(
         `UPDATE orders SET
-          status = ?, customer_name = ?, customer_phone = ?, customer_whatsapp = ?,
-          customer_city = ?, customer_address = ?, total = ?, currency = ?,
+          status = ?, customer_name = ?, customer_email = ?, customer_phone = ?, customer_whatsapp = ?,
+          customer_city = ?, customer_address = ?, customer_note = ?, total = ?, received_amount = ?, currency = ?,
           line_items = ?, shipping_address = ?, billing_address = ?,
-          date_modified = ?, pulled_at = ?, woo_raw_data = ?
+          date_modified = ?, pulled_at = ?, woo_raw_data = ?, website_order_number = ?
         WHERE id = ?`,
         [
-          order.status, customerName, order.billing?.phone || '', whatsapp,
-          customerCity, customerAddress, order.total, order.currency,
+          order.status, customerName, order.billing?.email || '', order.billing?.phone || '', whatsapp,
+          customerCity, customerAddress, customerNote, order.total, receivedAmount, order.currency,
           JSON.stringify(order.line_items || []),
           JSON.stringify(order.shipping || {}),
           JSON.stringify(order.billing || {}),
-          order.date_modified, now(), JSON.stringify(order),
+          order.date_modified, now(), JSON.stringify(order), websiteOrderNumber,
           existing.id
         ]
       )
@@ -95,24 +98,24 @@ webhookRouter.post('/woo/:siteId', (req: Request, res: Response) => {
       `INSERT INTO orders (
         site_id, woo_order_id, order_number, status,
         customer_name, customer_email, customer_phone, customer_whatsapp,
-        customer_city, customer_address,
-        payment_method, total, currency,
+        customer_city, customer_address, customer_note,
+        payment_method, total, received_amount, currency,
         line_items, shipping_address, billing_address,
         date_created, date_modified, pulled_at,
         distributor_id, source, created_by_role, created_by_id,
-        order_status, delivery_status, woo_raw_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        order_status, delivery_status, woo_raw_data, website_order_number
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         site.id, order.id, orderNumber, order.status,
         customerName, order.billing?.email || '', order.billing?.phone || '', whatsapp,
-        customerCity, customerAddress,
-        order.payment_method_title || '', order.total, order.currency,
+        customerCity, customerAddress, customerNote,
+        order.payment_method_title || '', order.total, receivedAmount, order.currency,
         JSON.stringify(order.line_items || []),
         JSON.stringify(order.shipping || {}),
         JSON.stringify(order.billing || {}),
         order.date_created, order.date_modified, now(),
         site.distributor_id, 'woo_webhook', 'system', null,
-        'unconfirmed', 'not_submitted', JSON.stringify(order)
+        'unconfirmed', 'not_submitted', JSON.stringify(order), websiteOrderNumber
       ]
     )
 

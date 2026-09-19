@@ -130,7 +130,7 @@ export function ProductListPage() {
         (e instanceof Error && /failed to fetch|network|load failed/i.test(e.message))
       if (isNetwork) {
         setLoadError(
-          '无法连接后端 API（开发环境 Vite 会将 /api 代理到 http://localhost:3002）。请在 vault-os1.1/backend 执行 npm run dev 启动本仓库后端；若仍无数据，可能是新的空库，需从备份恢复 backend/data/vaultcare.db 或从站点导入。',
+          '无法连接后端 API。',
         )
       } else if (e instanceof ApiError) {
         setLoadError(`加载失败（HTTP ${e.status}）：${e.message.slice(0, 280)}${e.message.length > 280 ? '…' : ''}`)

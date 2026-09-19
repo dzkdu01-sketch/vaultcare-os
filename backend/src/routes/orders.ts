@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { getDb } from '../db/index.js'
+import { getDb, withTransaction } from '../db/index.js'
 import { requireAuth, requireRole, optionalAuth } from '../middleware/auth.js'
 import { generateOrderNumber } from '../services/order-number.js'
 import {
@@ -183,8 +183,8 @@ orderRouter.post('/', requireAuth, (req: Request, res: Response) => {
     order_status: reqOrderStatus,
   } = req.body
 
-  const orderNumber = generateOrderNumber(distributorId)
   const orderStatus = reqOrderStatus === 'customer_confirmed' ? 'customer_confirmed' : 'unconfirmed'
+  const resolvedSiteId = typeof site_id === 'string' && site_id.trim() ? site_id.trim() : null
 
   // Use negative timestamp as woo_order_id for manual orders to avoid UNIQUE conflict
   const manualWooId = -Date.now()
@@ -197,34 +197,41 @@ orderRouter.post('/', requireAuth, (req: Request, res: Response) => {
   }
   total += Number(expedited_fee) || 0
 
-  db.run(
-    `INSERT INTO orders (
-      site_id, woo_order_id, order_number, status,
-      customer_name, customer_email, customer_phone, customer_whatsapp,
-      customer_city, customer_address,
-      payment_method, total, currency,
-      line_items, shipping_address, billing_address,
-      date_created, date_modified, pulled_at,
-      distributor_id, source, created_by_role, created_by_id,
-      order_status, delivery_status,
-      item_summary, expedited_fee, note
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      site_id || '', manualWooId, orderNumber, 'manual',
-      customer_name || '', '', customer_phone || '', customer_whatsapp || '',
-      customer_city || '', customer_address || '',
-      '', String(total), 'AED',
-      JSON.stringify(parsedItems), '{}', '{}',
-      now(), now(), now(),
-      distributorId, 'manual', user.role, user.userId,
-      orderStatus, 'not_submitted',
-      item_summary || '', Number(expedited_fee) || 0, note || ''
-    ]
-  )
-
-  const created = db.get(
-    'SELECT * FROM orders WHERE order_number = ?', [orderNumber]
-  )
+  let created: Record<string, unknown> | undefined
+  try {
+    created = withTransaction(() => {
+      const orderNumber = generateOrderNumber(distributorId)
+      db.run(
+        `INSERT INTO orders (
+          site_id, woo_order_id, order_number, status,
+          customer_name, customer_email, customer_phone, customer_whatsapp,
+          customer_city, customer_address,
+          payment_method, total, currency,
+          line_items, shipping_address, billing_address,
+          date_created, date_modified, pulled_at,
+          distributor_id, source, created_by_role, created_by_id,
+          order_status, delivery_status,
+          item_summary, expedited_fee, note
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          resolvedSiteId, manualWooId, orderNumber, 'manual',
+          customer_name || '', '', customer_phone || '', customer_whatsapp || '',
+          customer_city || '', customer_address || '',
+          '', String(total), 'AED',
+          JSON.stringify(parsedItems), '{}', '{}',
+          now(), now(), now(),
+          distributorId, 'manual', user.role, user.userId,
+          orderStatus, 'not_submitted',
+          item_summary || '', Number(expedited_fee) || 0, note || '',
+        ],
+      )
+      return db.get('SELECT * FROM orders WHERE order_number = ?', [orderNumber])
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/FOREIGN KEY/i.test(msg)) return respondError(res, '关联网站无效或不存在', 400)
+    return respondError(res, msg, 500)
+  }
 
   logStatusChange((created as any).id, 'order_status', null, orderStatus, userTag(req), '创建订单')
 

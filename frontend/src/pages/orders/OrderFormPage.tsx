@@ -80,7 +80,8 @@ export function OrderFormPage() {
 
   useEffect(() => {
     if (user?.role === 'operator') distributorApi.list().then(setDistributors).catch(() => {})
-    siteApi.list().then(setSites).catch(() => {})
+    const loadSites = user?.role === 'distributor' ? distributorApi.mySites() : siteApi.list()
+    loadSites.then(setSites).catch(() => {})
     if (isEdit) loadOrder(id!, false)
     else if (copyFromId) loadOrder(copyFromId, true)
     else setLoading(false)

@@ -45,7 +45,7 @@ async function main() {
     if (process.env.ORDER_SYNC_ENABLED === 'true') {
       startOrderSync()
     } else {
-      console.log('订单自动同步已关闭（未设置 ORDER_SYNC_ENABLED=true）；进订单页的「拉取」与 POST /orders/pull 仍可用')
+      console.log('定时拉单已关闭（未设置 ORDER_SYNC_ENABLED=true）。手动「拉取」与 webhook 写入还需 ORDER_INBOUND_FROM_WOO=1')
     }
   })
 }

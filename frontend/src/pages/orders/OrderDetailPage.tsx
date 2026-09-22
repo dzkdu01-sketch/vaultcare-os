@@ -3,24 +3,29 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { orderApi } from '../../services/app-services'
 import { getSessionUser } from '../../app/store/auth-store'
 import type { ExtendedOrder } from '../../services/types'
+import {
+  buildConfirmationLetter,
+  buildSupplierPasteText,
+  goodsTotal,
+  parseOrderLineItems,
+  toWhatsappE164,
+  websiteOrderNo,
+} from '../../lib/orderCopyTexts'
+import ConfirmDialog from '../../components/shared/ConfirmDialog'
 
-const ORDER_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  unconfirmed: { label: '未确认', color: 'bg-red-100 text-red-700' },
-  customer_confirmed: { label: '客户已确认', color: 'bg-orange-100 text-orange-700' },
-}
-
-const DELIVERY_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  not_submitted: { label: '未提交', color: 'bg-red-100 text-red-700' },
-  submitted: { label: '已提交', color: 'bg-orange-100 text-orange-700' },
+const WORKFLOW_LABELS: Record<string, { label: string; color: string }> = {
+  not_submitted: { label: '待处理', color: 'bg-red-100 text-red-700' },
+  submitted: { label: '已录入', color: 'bg-orange-100 text-orange-700' },
   delivery_exception: { label: '派送异常', color: 'bg-yellow-100 text-yellow-700' },
-  settled: { label: '结算', color: 'bg-green-100 text-green-700' },
-  cancelled: { label: '取消', color: 'bg-teal-100 text-teal-700' },
+  settled: { label: '已发货', color: 'bg-green-100 text-green-700' },
+  cancelled: { label: '已取消', color: 'bg-teal-100 text-teal-700' },
 }
 
 const ALL_STATUS: Record<string, string> = {
   unconfirmed: '未确认', customer_confirmed: '客户已确认',
-  not_submitted: '未提交', submitted: '已提交',
-  delivery_exception: '派送异常', settled: '结算', cancelled: '取消',
+  not_submitted: '待处理', submitted: '已录入',
+  delivery_exception: '派送异常', settled: '已发货', cancelled: '已取消',
+  received_amount: '实收',
 }
 
 function translateStatus(val: string | null): string {
@@ -43,6 +48,8 @@ export function OrderDetailPage() {
   const [order, setOrder] = useState<ExtendedOrder | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [copied, setCopied] = useState('')
 
   const loadOrder = () => {
     if (!id) { setOrder(null); setLoading(false); return }
@@ -65,12 +72,7 @@ export function OrderDetailPage() {
   const handleDeliveryStatusChange = async (newStatus: string) => {
     if (!order) return
     if (newStatus === 'cancelled') {
-      const reason = prompt('确定要取消此订单吗？请输入取消原因（可选）：')
-      if (reason === null) return
-      setActionLoading(true)
-      try { await orderApi.updateDeliveryStatus(order.id, newStatus, reason || undefined); loadOrder() }
-      catch (err: any) { alert(err.message) }
-      finally { setActionLoading(false) }
+      setCancelOpen(true)
       return
     }
     setActionLoading(true)
@@ -94,14 +96,9 @@ export function OrderDetailPage() {
         <Link to="/orders" className="text-sm text-primary hover:text-primary-hover">&larr; 返回订单列表</Link>
         <div className="flex items-center gap-3 mt-1">
           <h2 className="text-lg font-semibold text-slate-900">订单 {order.order_number}</h2>
-          {order.order_status && ORDER_STATUS_LABELS[order.order_status] && (
-            <span className={`text-xs px-2 py-0.5 rounded-full ${ORDER_STATUS_LABELS[order.order_status].color}`}>
-              {ORDER_STATUS_LABELS[order.order_status].label}
-            </span>
-          )}
-          {order.delivery_status && DELIVERY_STATUS_LABELS[order.delivery_status] && (
-            <span className={`text-xs px-2 py-0.5 rounded-full ${DELIVERY_STATUS_LABELS[order.delivery_status].color}`}>
-              {DELIVERY_STATUS_LABELS[order.delivery_status].label}
+          {order.delivery_status && WORKFLOW_LABELS[order.delivery_status] && (
+            <span className={`text-xs px-2 py-0.5 rounded-full ${WORKFLOW_LABELS[order.delivery_status].color}`}>
+              {WORKFLOW_LABELS[order.delivery_status].label}
             </span>
           )}
           {order.source && (
@@ -134,9 +131,13 @@ export function OrderDetailPage() {
               className="rounded-md bg-yellow-500 px-4 py-2 text-sm text-white hover:bg-yellow-600 disabled:opacity-50">派送异常</button>
           </>
         )}
-        {isOp && order.delivery_status && ['not_submitted', 'submitted', 'delivery_exception'].includes(order.delivery_status) && order.delivery_status !== 'cancelled' && (
+        {isOp && order.delivery_status && ['not_submitted', 'submitted', 'delivery_exception'].includes(order.delivery_status) && (
           <button onClick={() => handleDeliveryStatusChange('cancelled')} disabled={actionLoading}
             className="rounded-md border border-red-300 px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50">取消订单</button>
+        )}
+        {isOp && order.delivery_status === 'cancelled' && (
+          <button onClick={() => handleDeliveryStatusChange('not_submitted')} disabled={actionLoading}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50">恢复这一单</button>
         )}
       </div>
 
@@ -147,10 +148,28 @@ export function OrderDetailPage() {
           </h3>
           <dl className="space-y-2 text-sm">
             <div className="flex"><dt className="w-24 text-slate-500">name</dt><dd className="text-slate-900">{order.customer_name || '-'}</dd></div>
-            <div className="flex"><dt className="w-24 text-slate-500">phone</dt><dd className="text-slate-900">{order.customer_phone || '-'}</dd></div>
-            <div className="flex"><dt className="w-24 text-slate-500">whatsapp</dt><dd className="text-slate-900">{order.customer_whatsapp || '-'}</dd></div>
+            <div className="flex"><dt className="w-24 text-slate-500">phone</dt>
+              <dd className="text-slate-900">
+                {order.customer_phone || order.customer_whatsapp ? (
+                  <a className="text-primary" href={`https://wa.me/${toWhatsappE164(order.customer_phone || order.customer_whatsapp)}`} target="_blank" rel="noreferrer">
+                    {order.customer_phone || order.customer_whatsapp}
+                  </a>
+                ) : '-'}
+              </dd>
+            </div>
+            <div className="flex items-center gap-2"><dt className="w-24 text-slate-500">whatsapp</dt>
+              <dd className="text-slate-900">{order.customer_whatsapp || '-'}</dd>
+              {order.customer_whatsapp && (
+                <button type="button" className="text-xs text-primary" onClick={() => {
+                  void navigator.clipboard.writeText(order.customer_whatsapp)
+                  setCopied('wa')
+                }}>{copied === 'wa' ? '已复制' : '复制'}</button>
+              )}
+            </div>
+            <div className="flex"><dt className="w-24 text-slate-500">email</dt><dd className="text-slate-900">{order.customer_email || '-'}</dd></div>
             <div className="flex"><dt className="w-24 text-slate-500">city</dt><dd className="text-slate-900">{(order as any).customer_city || '-'}</dd></div>
-            <div className="flex"><dt className="w-24 text-slate-500">address</dt><dd className="text-slate-900">{(order as any).customer_address || '-'}</dd></div>
+            <div className="flex"><dt className="w-24 text-slate-500">address</dt><dd className="break-all text-slate-900">{(order as any).customer_address || '-'}</dd></div>
+            <div className="flex"><dt className="w-24 text-slate-500">客户备注</dt><dd className="text-slate-900">{order.customer_note || '-'}</dd></div>
           </dl>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -158,10 +177,11 @@ export function OrderDetailPage() {
             <span className="bg-primary text-white text-xs px-2 py-0.5 rounded">Order summary</span>
           </h3>
           <dl className="space-y-2 text-sm">
-            <div className="flex"><dt className="w-28 text-slate-500">items</dt><dd className="text-slate-900">{order.item_summary || '-'}</dd></div>
-            <div className="flex"><dt className="w-28 text-slate-500">expedited fee</dt><dd className="text-slate-900">{order.expedited_fee || 0} AED</dd></div>
-            <div className="flex"><dt className="w-28 text-slate-500">total price</dt><dd className="text-slate-900 font-medium">{order.total || 0} AED</dd></div>
-            <div className="flex"><dt className="w-28 text-slate-500">note</dt><dd className="text-slate-900">{order.note || '-'}</dd></div>
+            <div className="flex"><dt className="w-28 text-slate-500">网站订单号</dt><dd className="text-slate-900">{websiteOrderNo(order)}</dd></div>
+            <div className="flex"><dt className="w-28 text-slate-500">来源网址</dt><dd className="break-all text-slate-900">{order.site_url || '-'}</dd></div>
+            <div className="flex"><dt className="w-28 text-slate-500">商品合计</dt><dd className="text-slate-900">{goodsTotal(parseOrderLineItems(order.line_items)).toFixed(2)} AED</dd></div>
+            <div className="flex"><dt className="w-28 text-slate-500">实收</dt><dd className="text-slate-900 font-medium">{order.received_amount ?? order.total ?? 0} AED</dd></div>
+            <div className="flex"><dt className="w-28 text-slate-500">我的备注</dt><dd className="text-slate-900">{order.note || '-'}</dd></div>
           </dl>
         </div>
       </div>
@@ -205,6 +225,29 @@ export function OrderDetailPage() {
         )}
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-medium text-slate-900">供应商文本</h3>
+            <button type="button" className="text-xs text-primary" onClick={() => {
+              void navigator.clipboard.writeText(buildSupplierPasteText(order))
+              setCopied('supplier')
+            }}>{copied === 'supplier' ? '已复制' : '复制'}</button>
+          </div>
+          <pre className="whitespace-pre-wrap break-all text-sm text-slate-800">{buildSupplierPasteText(order)}</pre>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-medium text-slate-900">确认函</h3>
+            <button type="button" className="text-xs text-primary" onClick={() => {
+              void navigator.clipboard.writeText(buildConfirmationLetter(order))
+              setCopied('letter')
+            }}>{copied === 'letter' ? '已复制' : '复制'}</button>
+          </div>
+          <pre className="whitespace-pre-wrap break-all text-sm text-slate-800">{buildConfirmationLetter(order)}</pre>
+        </div>
+      </div>
+
       {order.status_log && order.status_log.length > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-medium text-slate-900 mb-4">状态变更记录</h3>
@@ -223,6 +266,24 @@ export function OrderDetailPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={cancelOpen}
+        title="取消订单"
+        message="取消后可在本页恢复。"
+        confirmLabel="取消这一单"
+        cancelLabel="返回"
+        variant="danger"
+        onCancel={() => setCancelOpen(false)}
+        onConfirm={async () => {
+          setCancelOpen(false)
+          if (!order) return
+          setActionLoading(true)
+          try { await orderApi.updateDeliveryStatus(order.id, 'cancelled'); loadOrder() }
+          catch (err: any) { alert(err.message) }
+          finally { setActionLoading(false) }
+        }}
+      />
     </div>
   )
 }

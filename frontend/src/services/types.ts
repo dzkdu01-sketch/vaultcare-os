@@ -256,6 +256,10 @@ export type ExtendedOrder = Order & {
   created_by_role?: string
   customer_city?: string
   customer_address?: string
+  customer_note?: string
+  website_order_number?: string
+  received_amount?: number
+  site_url?: string
   order_status?: OrderStatusValue
   delivery_status?: DeliveryStatusValue
   item_summary?: string
@@ -278,10 +282,14 @@ export type OrderInput = {
   distributor_id?: number
   site_id?: string | null
   customer_name?: string
+  customer_email?: string
   customer_phone?: string
   customer_whatsapp?: string
   customer_city?: string
   customer_address?: string
+  customer_note?: string
+  website_order_number?: string
+  received_amount?: number
   line_items?: Array<{
     local_product_id?: string | number
     sku?: string

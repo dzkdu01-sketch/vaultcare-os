@@ -43,6 +43,74 @@ function addColumnIfMissing(db: SqliteDb, table: string, column: string, definit
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
 }
 
+/** 手建单允许不关联 Woo 站点（WhatsApp / 货到付款）。旧库 site_id NOT NULL 需重建。 */
+function migrateOrdersSiteIdNullable(db: SqliteDb) {
+  const cols = db.prepare('PRAGMA table_info(orders)').all() as { name: string; notnull: number }[]
+  if (cols.length === 0) return
+  const site = cols.find((c) => c.name === 'site_id')
+  if (!site || site.notnull === 0) return
+
+  const names = cols.map((c) => `"${c.name}"`).join(', ')
+  db.exec('PRAGMA foreign_keys = OFF')
+  db.exec(`
+    CREATE TABLE orders__site_nullable (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id TEXT REFERENCES sites(id) ON DELETE SET NULL,
+      woo_order_id INTEGER NOT NULL,
+      order_number TEXT,
+      status TEXT NOT NULL,
+      customer_name TEXT,
+      customer_email TEXT,
+      customer_phone TEXT,
+      customer_whatsapp TEXT,
+      payment_method TEXT,
+      total TEXT,
+      currency TEXT DEFAULT 'AED',
+      line_items TEXT DEFAULT '[]',
+      shipping_address TEXT,
+      billing_address TEXT,
+      date_created TEXT,
+      date_modified TEXT,
+      pulled_at TEXT NOT NULL,
+      distributor_id INTEGER,
+      source TEXT DEFAULT 'woo_webhook',
+      created_by_role TEXT DEFAULT 'system',
+      created_by_id INTEGER,
+      customer_city TEXT,
+      customer_address TEXT,
+      order_status TEXT DEFAULT 'unconfirmed',
+      delivery_status TEXT DEFAULT 'not_submitted',
+      item_summary TEXT,
+      expedited_fee REAL DEFAULT 0,
+      note TEXT,
+      woo_raw_data TEXT,
+      reviewed_by INTEGER,
+      settlement_amount REAL,
+      settlement_status TEXT,
+      settlement_note TEXT,
+      routed_supplier_id INTEGER,
+      routing_reason TEXT,
+      UNIQUE(site_id, woo_order_id)
+    );
+  `)
+  db.exec(`INSERT INTO orders__site_nullable (${names}) SELECT ${names} FROM orders`)
+  db.exec(`UPDATE orders__site_nullable SET site_id = NULL WHERE site_id = ''`)
+  const maxId = db.prepare('SELECT MAX(id) as m FROM orders__site_nullable').get() as { m?: number } | undefined
+  db.exec('DROP TABLE orders')
+  db.exec('ALTER TABLE orders__site_nullable RENAME TO orders')
+  if (maxId?.m) {
+    db.prepare("INSERT OR REPLACE INTO sqlite_sequence(name, seq) VALUES ('orders', ?)").run(maxId.m)
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_orders_site ON orders(site_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_distributor ON orders(distributor_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_order_status ON orders(order_status);
+    CREATE INDEX IF NOT EXISTS idx_orders_delivery_status ON orders(delivery_status);
+  `)
+  db.exec('PRAGMA foreign_keys = ON')
+}
+
 function openAndMigrate(): SqliteDb {
   const dir = path.dirname(DB_PATH)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -95,7 +163,7 @@ function openAndMigrate(): SqliteDb {
 
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      site_id TEXT REFERENCES sites(id) ON DELETE SET NULL,
       woo_order_id INTEGER NOT NULL,
       order_number TEXT,
       status TEXT NOT NULL,
@@ -234,6 +302,10 @@ function openAndMigrate(): SqliteDb {
   addColumnIfMissing(db, 'orders', 'settlement_note', 'TEXT')
   addColumnIfMissing(db, 'orders', 'routed_supplier_id', 'INTEGER')
   addColumnIfMissing(db, 'orders', 'routing_reason', 'TEXT')
+  migrateOrdersSiteIdNullable(db)
+  addColumnIfMissing(db, 'orders', 'customer_note', 'TEXT')
+  addColumnIfMissing(db, 'orders', 'received_amount', 'REAL')
+  addColumnIfMissing(db, 'orders', 'website_order_number', 'TEXT')
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_orders_distributor ON orders(distributor_id);

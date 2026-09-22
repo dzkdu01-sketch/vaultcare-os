@@ -3,15 +3,10 @@
  * 依赖 supplier_products 中已存在对应 supplier_code 的导入行（与后台「货源导入」一致）。
  *
  * 用法：
- *   npx tsx scripts/bind-sku-supplier-csv.ts
  *   npx tsx scripts/bind-sku-supplier-csv.ts path/to/file.csv
  */
 import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import { initDb, getDb } from '../src/db/index.js'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 function now() {
   return new Date().toISOString()
@@ -98,8 +93,11 @@ function bindOne(
 }
 
 async function main() {
-  const csvPath =
-    process.argv[2] || path.join(__dirname, '../../products-sku-name.csv')
+  const csvPath = process.argv[2]
+  if (!csvPath) {
+    console.error('用法: npx tsx scripts/bind-sku-supplier-csv.ts path/to/file.csv')
+    process.exit(1)
+  }
   if (!fs.existsSync(csvPath)) {
     console.error('找不到 CSV 文件:', csvPath)
     process.exit(1)

@@ -98,12 +98,14 @@ async function pullOrdersFromSite(site: any): Promise<PullCount> {
         if (existing) {
           db.run(
             `UPDATE orders SET status = ?, customer_name = ?, customer_email = ?, customer_phone = ?, customer_whatsapp = ?,
-             total = ?, line_items = ?, customer_city = ?, customer_address = ?, date_modified = ?, pulled_at = ?
+             total = ?, received_amount = ?, line_items = ?, customer_city = ?, customer_address = ?, customer_note = ?,
+             website_order_number = ?, date_modified = ?, pulled_at = ?
              WHERE site_id = ? AND woo_order_id = ?`,
             [
               order.status, customerName, order.billing?.email || '', order.billing?.phone || '', whatsapp,
-              order.total, JSON.stringify(order.line_items || []),
-              customerCity, customerAddress, order.date_modified, now(),
+              order.total, Number(order.total) || 0, JSON.stringify(order.line_items || []),
+              customerCity, customerAddress, String(order.customer_note || '').trim(),
+              String(order.number || order.id || ''), order.date_modified, now(),
               site.id, order.id,
             ]
           )
@@ -117,22 +119,22 @@ async function pullOrdersFromSite(site: any): Promise<PullCount> {
             `INSERT INTO orders (
               site_id, woo_order_id, order_number, status,
               customer_name, customer_email, customer_phone, customer_whatsapp,
-              customer_city, customer_address,
-              payment_method, total, currency, line_items, shipping_address, billing_address,
+              customer_city, customer_address, customer_note,
+              payment_method, total, received_amount, currency, line_items, shipping_address, billing_address,
               date_created, date_modified, pulled_at,
-              distributor_id, source, created_by_role, order_status, delivery_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              distributor_id, source, created_by_role, order_status, delivery_status, website_order_number
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               site.id, order.id, orderNumber, order.status,
               customerName, order.billing?.email || '', order.billing?.phone || '', whatsapp,
-              customerCity, customerAddress,
-              order.payment_method_title || '', order.total, order.currency,
+              customerCity, customerAddress, String(order.customer_note || '').trim(),
+              order.payment_method_title || '', order.total, Number(order.total) || 0, order.currency,
               JSON.stringify(order.line_items || []),
               JSON.stringify(order.shipping || {}),
               JSON.stringify(order.billing || {}),
               order.date_created, order.date_modified, now(),
               site.distributor_id || null, 'woo_api', 'system',
-              'unconfirmed', 'not_submitted'
+              'unconfirmed', 'not_submitted', String(order.number || order.id || ''),
             ]
           )
           pulled++

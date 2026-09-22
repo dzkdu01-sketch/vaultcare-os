@@ -73,7 +73,6 @@ function OperatorManagementCenter() {
     <div className="space-y-6">
       <header className="space-y-2">
         <h2 className="text-2xl font-semibold text-slate-900">管理中心</h2>
-        <p className="text-sm text-slate-500">统一管理分销商及其站点资产、内部账号和系统配置。</p>
       </header>
 
       <SectionTabs

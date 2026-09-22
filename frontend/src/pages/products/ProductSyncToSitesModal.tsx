@@ -38,9 +38,6 @@ export function ProductSyncToSitesModal({
         <h3 id="sync-modal-title" className="text-lg font-semibold text-slate-900">
           同步至网站
         </h3>
-        <p className="mt-2 text-sm text-slate-500">
-          将当前商品推送到已选 WooCommerce / 自建站。会先保存本地修改再执行同步。
-        </p>
 
         {active.length === 0 ? (
           <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">

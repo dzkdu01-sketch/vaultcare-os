@@ -7,7 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build": "node ./node_modules/typescript/lib/tsc.js",
-    "purge-orders": "node scripts/purge-all-orders.mjs"
+    "purge-orders": "node scripts/purge-all-orders.mjs",
+    "wipe-data": "node scripts/wipe-operational-data.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.97",

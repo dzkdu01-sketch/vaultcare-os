@@ -1,6 +1,18 @@
 /** 须含 /api/v1，与后端 Express 挂载一致；开发环境推荐 /api/v1 走 Vite 代理 */
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
+function extractApiMessage(text: string | undefined, fallback: string): string {
+  const raw = (text || '').trim()
+  if (!raw) return fallback
+  try {
+    const parsed = JSON.parse(raw) as { message?: unknown }
+    if (typeof parsed?.message === 'string' && parsed.message.trim()) return parsed.message
+  } catch {
+    /* 非 JSON 错误页保持原文 */
+  }
+  return raw
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -36,7 +48,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
-    throw new ApiError(res.status, text || res.statusText)
+    throw new ApiError(res.status, extractApiMessage(text, res.statusText))
   }
 
   // 204 No Content
@@ -61,7 +73,7 @@ async function getBlob(path: string): Promise<Blob> {
   const res = await fetch(`${BASE_URL}${path}`, { method: 'GET', headers })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
-    throw new ApiError(res.status, text || res.statusText)
+    throw new ApiError(res.status, extractApiMessage(text, res.statusText))
   }
   return res.blob()
 }

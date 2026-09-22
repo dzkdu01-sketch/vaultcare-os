@@ -32,10 +32,19 @@ dist/
 **/dist/
 *.tsbuildinfo
 
-# 本地数据库（勿提交）
+# 本地数据库与过程数据（勿提交、勿上传生产）
 backend/data/*.db
-# 数据库临时备份（勿提交）
+backend/data/*.db-wal
+backend/data/*.db-shm
 backend/data/*.bak
+backend/data/*.bak.*
+/products-sku-name.csv
+/*.csv
+/data-exports/
+
+# Python 缓存
+**/__pycache__/
+*.pyc
 
 # 安装包与临时页面（勿提交）
 *.exe

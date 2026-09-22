@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { getDb } from '../db/index.js'
+import { getDb, withTransaction } from '../db/index.js'
 import { requireAuth, requireRole, optionalAuth } from '../middleware/auth.js'
 import { generateOrderNumber } from '../services/order-number.js'
 import {
@@ -67,7 +67,7 @@ orderRouter.get('/', requireAuth, (req: Request, res: Response) => {
   const total = (totalRow as any)?.count ?? 0
 
   const items = db.all(
-    `SELECT o.*, s.name as site_name,
+    `SELECT o.*, s.name as site_name, s.url as site_url,
             COALESCE(NULLIF(TRIM(d.name), ''), d.code) as distributor_name,
             d.code as distributor_code
      FROM orders o
@@ -104,22 +104,8 @@ orderRouter.get('/', requireAuth, (req: Request, res: Response) => {
 })
 
 // POST /orders/batch-delete — 须放在 /:id 之前，避免被当成订单 id
-orderRouter.post('/batch-delete', requireAuth, requireRole('operator'), (req: Request, res: Response) => {
-  const db = getDb()
-  const raw = req.body?.ids
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return respondError(res, 'ids 必须为非空数组')
-  }
-  let deleted = 0
-  for (const v of raw) {
-    const id = parseInt(String(v), 10)
-    if (!Number.isFinite(id)) continue
-    const row = db.get('SELECT id FROM orders WHERE id = ?', [id])
-    if (!row) continue
-    db.run('DELETE FROM orders WHERE id = ?', [id])
-    deleted++
-  }
-  respond(res, { deleted })
+orderRouter.post('/batch-delete', requireAuth, requireRole('operator'), (_req: Request, res: Response) => {
+  return respondError(res, '订单不能删除，请取消后可在同一页恢复', 403)
 })
 
 // GET /orders/:id
@@ -152,12 +138,8 @@ orderRouter.get('/:id', requireAuth, (req: Request, res: Response) => {
 })
 
 // DELETE /orders/:id — 仅操作员；级联删除 order_status_log
-orderRouter.delete('/:id', requireAuth, requireRole('operator'), (req: Request, res: Response) => {
-  const db = getDb()
-  const row = db.get('SELECT id FROM orders WHERE id = ?', [req.params.id])
-  if (!row) return respondError(res, '订单不存在', 404)
-  db.run('DELETE FROM orders WHERE id = ?', [req.params.id])
-  respond(res, { deleted: true })
+orderRouter.delete('/:id', requireAuth, requireRole('operator'), (_req: Request, res: Response) => {
+  return respondError(res, '订单不能删除，请取消后可在同一页恢复', 403)
 })
 
 // POST /orders - Create manual order
@@ -179,52 +161,64 @@ orderRouter.post('/', requireAuth, (req: Request, res: Response) => {
 
   const {
     customer_name, customer_phone, customer_whatsapp, customer_city, customer_address,
+    customer_email, customer_note, website_order_number, received_amount,
     line_items, item_summary, expedited_fee, note, site_id,
     order_status: reqOrderStatus,
   } = req.body
 
-  const orderNumber = generateOrderNumber(distributorId)
   const orderStatus = reqOrderStatus === 'customer_confirmed' ? 'customer_confirmed' : 'unconfirmed'
+  const resolvedSiteId = typeof site_id === 'string' && site_id.trim() ? site_id.trim() : null
 
   // Use negative timestamp as woo_order_id for manual orders to avoid UNIQUE conflict
   const manualWooId = -Date.now()
 
   // Calculate total from line items
-  let total = 0
+  let goods = 0
   const parsedItems = Array.isArray(line_items) ? line_items : []
   for (const item of parsedItems) {
-    total += (Number(item.price) || 0) * (Number(item.quantity) || 1)
+    goods += (Number(item.price) || 0) * (Number(item.quantity) || 1)
   }
-  total += Number(expedited_fee) || 0
+  const received = received_amount === undefined || received_amount === null || received_amount === ''
+    ? goods
+    : Number(received_amount)
+  const total = Number.isFinite(received) ? received : goods
 
-  db.run(
-    `INSERT INTO orders (
-      site_id, woo_order_id, order_number, status,
-      customer_name, customer_email, customer_phone, customer_whatsapp,
-      customer_city, customer_address,
-      payment_method, total, currency,
-      line_items, shipping_address, billing_address,
-      date_created, date_modified, pulled_at,
-      distributor_id, source, created_by_role, created_by_id,
-      order_status, delivery_status,
-      item_summary, expedited_fee, note
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      site_id || '', manualWooId, orderNumber, 'manual',
-      customer_name || '', '', customer_phone || '', customer_whatsapp || '',
-      customer_city || '', customer_address || '',
-      '', String(total), 'AED',
-      JSON.stringify(parsedItems), '{}', '{}',
-      now(), now(), now(),
-      distributorId, 'manual', user.role, user.userId,
-      orderStatus, 'not_submitted',
-      item_summary || '', Number(expedited_fee) || 0, note || ''
-    ]
-  )
-
-  const created = db.get(
-    'SELECT * FROM orders WHERE order_number = ?', [orderNumber]
-  )
+  let created: Record<string, unknown> | undefined
+  try {
+    created = withTransaction(() => {
+      const orderNumber = generateOrderNumber(distributorId)
+      db.run(
+        `INSERT INTO orders (
+          site_id, woo_order_id, order_number, status,
+          customer_name, customer_email, customer_phone, customer_whatsapp,
+          customer_city, customer_address, customer_note,
+          payment_method, total, received_amount, currency,
+          line_items, shipping_address, billing_address,
+          date_created, date_modified, pulled_at,
+          distributor_id, source, created_by_role, created_by_id,
+          order_status, delivery_status,
+          item_summary, expedited_fee, note, website_order_number
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          resolvedSiteId, manualWooId, orderNumber, 'manual',
+          customer_name || '', customer_email || '', customer_phone || '', customer_whatsapp || '',
+          customer_city || '', customer_address || '', customer_note || '',
+          '', String(total), total, 'AED',
+          JSON.stringify(parsedItems), '{}', '{}',
+          now(), now(), now(),
+          distributorId, 'manual', user.role, user.userId,
+          orderStatus, 'not_submitted',
+          item_summary || '', Number(expedited_fee) || 0, note || '',
+          website_order_number || '',
+        ],
+      )
+      return db.get('SELECT * FROM orders WHERE order_number = ?', [orderNumber])
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/FOREIGN KEY/i.test(msg)) return respondError(res, '关联网站无效或不存在', 400)
+    return respondError(res, msg, 500)
+  }
 
   logStatusChange((created as any).id, 'order_status', null, orderStatus, userTag(req), '创建订单')
 
@@ -249,6 +243,7 @@ orderRouter.put('/:id', requireAuth, (req: Request, res: Response) => {
 
   const {
     customer_name, customer_phone, customer_whatsapp, customer_city, customer_address,
+    customer_email, customer_note, website_order_number, received_amount,
     line_items, item_summary, expedited_fee, note, site_id,
   } = req.body
 
@@ -256,10 +251,13 @@ orderRouter.put('/:id', requireAuth, (req: Request, res: Response) => {
   const params: unknown[] = []
 
   if (customer_name !== undefined) { sets.push('customer_name = ?'); params.push(customer_name) }
+  if (customer_email !== undefined) { sets.push('customer_email = ?'); params.push(customer_email) }
   if (customer_phone !== undefined) { sets.push('customer_phone = ?'); params.push(customer_phone) }
   if (customer_whatsapp !== undefined) { sets.push('customer_whatsapp = ?'); params.push(customer_whatsapp) }
   if (customer_city !== undefined) { sets.push('customer_city = ?'); params.push(customer_city) }
   if (customer_address !== undefined) { sets.push('customer_address = ?'); params.push(customer_address) }
+  if (customer_note !== undefined) { sets.push('customer_note = ?'); params.push(customer_note) }
+  if (website_order_number !== undefined) { sets.push('website_order_number = ?'); params.push(website_order_number) }
   if (note !== undefined) { sets.push('note = ?'); params.push(note) }
   if (item_summary !== undefined) { sets.push('item_summary = ?'); params.push(item_summary) }
   if (expedited_fee !== undefined) { sets.push('expedited_fee = ?'); params.push(Number(expedited_fee) || 0) }
@@ -267,13 +265,28 @@ orderRouter.put('/:id', requireAuth, (req: Request, res: Response) => {
   if (line_items !== undefined) {
     const parsedItems = Array.isArray(line_items) ? line_items : []
     sets.push('line_items = ?'); params.push(JSON.stringify(parsedItems))
-    // Recalculate total
-    let total = 0
+    let goods = 0
     for (const item of parsedItems) {
-      total += (Number(item.price) || 0) * (Number(item.quantity) || 1)
+      goods += (Number(item.price) || 0) * (Number(item.quantity) || 1)
     }
-    total += Number(expedited_fee ?? order.expedited_fee) || 0
+    const received = received_amount === undefined || received_amount === null || received_amount === ''
+      ? goods
+      : Number(received_amount)
+    const total = Number.isFinite(received) ? received : goods
     sets.push('total = ?'); params.push(String(total))
+    sets.push('received_amount = ?'); params.push(total)
+    if (order.received_amount != null && Number(order.received_amount) !== total) {
+      logStatusChange(order.id, 'received_amount', String(order.received_amount), String(total), userTag(req), '改实收')
+    }
+  } else if (received_amount !== undefined && received_amount !== null && received_amount !== '') {
+    const total = Number(received_amount)
+    if (Number.isFinite(total)) {
+      sets.push('total = ?'); params.push(String(total))
+      sets.push('received_amount = ?'); params.push(total)
+      if (order.received_amount != null && Number(order.received_amount) !== total) {
+        logStatusChange(order.id, 'received_amount', String(order.received_amount), String(total), userTag(req), '改实收')
+      }
+    }
   }
 
   if (sets.length === 0) return respondError(res, '没有可更新的字段')
@@ -344,7 +357,7 @@ orderRouter.put('/:id/delivery-status', requireAuth, requireRole('operator'), (r
     'submitted': ['delivery_exception', 'settled', 'cancelled'],
     'delivery_exception': ['settled', 'cancelled'],
     'settled': [],
-    'cancelled': [],
+    'cancelled': ['not_submitted'],
   }
 
   const currentStatus = order.delivery_status || 'not_submitted'

@@ -4,17 +4,12 @@ import { orderApi, siteApi, distributorApi } from '../../services/app-services'
 import { getSessionUser } from '../../app/store/auth-store'
 import type { ExtendedOrder, Pagination, Site, Distributor } from '../../services/types'
 
-const ORDER_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  unconfirmed: { label: '未确认', color: 'bg-red-100 text-red-700' },
-  customer_confirmed: { label: '客户已确认', color: 'bg-orange-100 text-orange-700' },
-}
-
 const DELIVERY_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  not_submitted: { label: '未提交', color: 'bg-red-100 text-red-700' },
-  submitted: { label: '已提交', color: 'bg-orange-100 text-orange-700' },
+  not_submitted: { label: '待处理', color: 'bg-red-100 text-red-700' },
+  submitted: { label: '已录入', color: 'bg-orange-100 text-orange-700' },
   delivery_exception: { label: '派送异常', color: 'bg-yellow-100 text-yellow-700' },
-  settled: { label: '结算', color: 'bg-green-100 text-green-700' },
-  cancelled: { label: '取消', color: 'bg-teal-100 text-teal-700' },
+  settled: { label: '已发货', color: 'bg-green-100 text-green-700' },
+  cancelled: { label: '已取消', color: 'bg-teal-100 text-teal-700' },
 }
 
 function parseSkus(lineItemsRaw: any): string {
@@ -81,7 +76,6 @@ export function OrderListPage() {
   const [pulling, setPulling] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [batchLoading, setBatchLoading] = useState(false)
-  const [batchDeleting, setBatchDeleting] = useState(false)
 
   const loadOrders = async (page = 1) => {
     setLoading(true)
@@ -133,9 +127,7 @@ export function OrderListPage() {
   const handleFilter = () => loadOrders(1)
 
   const confirmableOrders = orders.filter(o => o.order_status === 'unconfirmed' && o.delivery_status === 'not_submitted')
-  const pageOrderIds = orders.map(o => o.id)
-  /** 操作员：整页可勾选（批量删除）；分销商：仅可确认单 */
-  const showCheckboxCol = isOp || confirmableOrders.length > 0
+  const showCheckboxCol = confirmableOrders.length > 0
   const selectedConfirmable = orders.filter(
     o => selected.has(o.id) && o.order_status === 'unconfirmed' && o.delivery_status === 'not_submitted',
   )
@@ -148,11 +140,6 @@ export function OrderListPage() {
     })
   }
   const toggleAll = () => {
-    if (isOp) {
-      if (pageOrderIds.length > 0 && pageOrderIds.every(i => selected.has(i))) setSelected(new Set())
-      else setSelected(new Set(pageOrderIds))
-      return
-    }
     if (selected.size === confirmableOrders.length) setSelected(new Set())
     else setSelected(new Set(confirmableOrders.map(o => o.id)))
   }
@@ -170,55 +157,27 @@ export function OrderListPage() {
     loadOrders(pagination.page)
   }
 
-  const handleBatchDelete = async () => {
-    if (!isOp || selected.size === 0) return
-    if (!confirm(`确定删除已选中的 ${selected.size} 个订单？此操作不可恢复。`)) return
-    setBatchDeleting(true)
-    try {
-      const { deleted } = await orderApi.batchDelete([...selected])
-      alert(`已删除 ${deleted} 个订单`)
-      loadOrders(pagination.page)
-    } catch (e: any) {
-      alert(e?.message || '删除失败')
-    } finally {
-      setBatchDeleting(false)
-    }
-  }
-
-  const handleRowDelete = async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation()
-    if (!confirm('确定删除该订单？不可恢复。')) return
-    try {
-      await orderApi.remove(id)
-      loadOrders(pagination.page)
-    } catch (err: any) {
-      alert(err?.message || '删除失败')
-    }
-  }
-
   const handleExport = () => {
     const header = isOp
-      ? ['Order number', '分销商', '网站名称', 'WhatsApp', '商品编号', 'Order status', '出库状态', 'Total', '来源', '日期']
-      : ['Order number', 'WhatsApp', '商品编号', 'Order status', '出库状态', 'Total', '网站名称', '来源', '日期']
+      ? ['Order number', '分销商', '网站名称', 'WhatsApp', '商品编号', '状态', 'Total', '来源', '日期']
+      : ['Order number', 'WhatsApp', '商品编号', '状态', 'Total', '网站名称', '来源', '日期']
     const rows = orders.map(o =>
       isOp
         ? [
-            o.order_number,
+            o.website_order_number || o.order_number,
             formatDistributorCell(o),
             o.site_name || '-',
             o.customer_whatsapp || '',
             parseSkus(o.line_items),
-            ORDER_STATUS_LABELS[o.order_status || '']?.label || '',
             DELIVERY_STATUS_LABELS[o.delivery_status || '']?.label || '',
             `${o.currency || 'AED'} ${o.total}`,
             sourceLabel(o.source),
             formatDate(o.date_created),
           ]
         : [
-            o.order_number,
+            o.website_order_number || o.order_number,
             o.customer_whatsapp || '',
             parseSkus(o.line_items),
-            ORDER_STATUS_LABELS[o.order_status || '']?.label || '',
             DELIVERY_STATUS_LABELS[o.delivery_status || '']?.label || '',
             `${o.currency || 'AED'} ${o.total}`,
             o.site_name || '-',
@@ -235,8 +194,8 @@ export function OrderListPage() {
     a.click(); URL.revokeObjectURL(url)
   }
 
-  const dataColCount = 9 + (isOp ? 1 : 0)
-  const tableColSpan = dataColCount + (showCheckboxCol ? 1 : 0) + (isOp ? 1 : 0)
+  const dataColCount = 8 + (isOp ? 1 : 0)
+  const tableColSpan = dataColCount + (showCheckboxCol ? 1 : 0)
 
   return (
     <div className="space-y-4">
@@ -251,14 +210,9 @@ export function OrderListPage() {
                 {distributors.map(d => <option key={d.id} value={d.id}>{d.name} ({d.code})</option>)}
               </select>
             )}
-            <select value={filters.order_status} onChange={e => setFilters(f => ({ ...f, order_status: e.target.value }))}
-              className="px-3 py-2 border border-slate-300 rounded-md text-sm">
-              <option value="">全部确认状态</option>
-              {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
             <select value={filters.delivery_status} onChange={e => setFilters(f => ({ ...f, delivery_status: e.target.value }))}
               className="px-3 py-2 border border-slate-300 rounded-md text-sm">
-              <option value="">全部出库状态</option>
+              <option value="">全部状态</option>
               {Object.entries(DELIVERY_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
             <input value={filters.keyword} onChange={e => setFilters(f => ({ ...f, keyword: e.target.value }))}
@@ -269,12 +223,6 @@ export function OrderListPage() {
             <button onClick={handleFilter} className="px-4 py-2 text-sm border border-slate-200 rounded-md hover:bg-slate-50">筛选</button>
           </div>
           <div className="flex gap-2">
-            {isOp && selected.size > 0 && (
-              <button type="button" onClick={handleBatchDelete} disabled={batchDeleting}
-                className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50">
-                {batchDeleting ? '删除中...' : `批量删除 (${selected.size})`}
-              </button>
-            )}
             {selectedConfirmable.length > 0 && (
               <button type="button" onClick={handleBatchConfirm} disabled={batchLoading}
                 className="rounded-md bg-orange-500 px-4 py-2 text-sm text-white hover:bg-orange-600 disabled:opacity-50">
@@ -297,9 +245,6 @@ export function OrderListPage() {
       {/* Status counts */}
       <div className="flex flex-wrap gap-3 text-sm">
         <span className="text-slate-500">全部 {orderStatusCounts.all || 0}</span>
-        {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) =>
-          orderStatusCounts[k] ? <span key={k} className="text-slate-500">{v.label} {orderStatusCounts[k]}</span> : null
-        )}
         <span className="text-slate-300">|</span>
         {Object.entries(DELIVERY_STATUS_LABELS).map(([k, v]) =>
           deliveryStatusCounts[k] ? <span key={k} className="text-slate-500">{v.label} {deliveryStatusCounts[k]}</span> : null
@@ -307,16 +252,14 @@ export function OrderListPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               {showCheckboxCol && (
                 <th className="px-3 py-3 w-8">
                   <input type="checkbox"
-                    checked={isOp
-                      ? pageOrderIds.length > 0 && pageOrderIds.every(id => selected.has(id))
-                      : selected.size > 0 && selected.size === confirmableOrders.length}
+                    checked={selected.size > 0 && selected.size === confirmableOrders.length}
                     onChange={toggleAll} className="accent-primary" />
                 </th>
               )}
@@ -325,13 +268,11 @@ export function OrderListPage() {
               {isOp && <th className="text-left px-4 py-3 font-medium text-slate-600">网站名称</th>}
               <th className="text-left px-4 py-3 font-medium text-slate-600">WhatsApp</th>
               <th className="text-left px-4 py-3 font-medium text-slate-600">商品编号</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Order status</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">出库状态</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-600">状态</th>
               <th className="text-right px-4 py-3 font-medium text-slate-600">Total</th>
               {!isOp && <th className="text-left px-4 py-3 font-medium text-slate-600">网站名称</th>}
               <th className="text-left px-4 py-3 font-medium text-slate-600">来源</th>
               <th className="text-left px-4 py-3 font-medium text-slate-600">日期</th>
-              {isOp && <th className="text-right px-4 py-3 font-medium text-slate-600 w-24">操作</th>}
             </tr>
           </thead>
           <tbody>
@@ -340,8 +281,6 @@ export function OrderListPage() {
             ) : orders.length === 0 ? (
               <tr><td colSpan={tableColSpan} className="px-4 py-12 text-center">
                 <div className="text-slate-400 mb-3">暂无订单</div>
-                <button onClick={() => navigate('/orders/new')}
-                  className="text-primary hover:text-primary-hover text-sm font-medium">点击这里创建第一个订单 →</button>
               </td></tr>
             ) : orders.map(o => {
               const isConfirmable = o.order_status === 'unconfirmed' && o.delivery_status === 'not_submitted'
@@ -356,23 +295,23 @@ export function OrderListPage() {
                       )}
                     </td>
                   )}
-                  <td className="px-4 py-3 font-mono text-slate-700">{o.order_number}</td>
+                  <td className="px-4 py-3 font-mono text-slate-700">{o.website_order_number || o.order_number}</td>
                   {isOp && <td className="px-4 py-3 text-slate-500">{formatDistributorCell(o)}</td>}
                   {isOp && (
                     <td className="px-4 py-3 text-slate-500 max-w-[10rem] truncate" title={o.site_name || ''}>
                       {o.site_name || (o.source === 'manual' ? '—' : '-')}
                     </td>
                   )}
-                  <td className="px-4 py-3 text-slate-500">{o.customer_whatsapp || '-'}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs font-mono max-w-40 truncate" title={parseSkus(o.line_items)}>
-                    {parseSkus(o.line_items)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {o.order_status && ORDER_STATUS_LABELS[o.order_status] ? (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${ORDER_STATUS_LABELS[o.order_status].color}`}>
-                        {ORDER_STATUS_LABELS[o.order_status].label}
+                  <td className="px-4 py-3 text-slate-500" onClick={e => e.stopPropagation()}>
+                    {o.customer_whatsapp ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span>{o.customer_whatsapp}</span>
+                        <button type="button" className="text-xs text-primary" onClick={() => void navigator.clipboard.writeText(o.customer_whatsapp)}>复制</button>
                       </span>
                     ) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs font-mono max-w-40 truncate" title={parseSkus(o.line_items)}>
+                    {parseSkus(o.line_items)}
                   </td>
                   <td className="px-4 py-3">
                     {o.delivery_status && DELIVERY_STATUS_LABELS[o.delivery_status] ? (
@@ -393,15 +332,6 @@ export function OrderListPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{formatDate(o.date_created)}</td>
-                  {isOp && (
-                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                      <button type="button"
-                        className="text-xs text-red-600 hover:text-red-800 underline-offset-2 hover:underline"
-                        onClick={e => handleRowDelete(e, o.id)}>
-                        删除
-                      </button>
-                    </td>
-                  )}
                 </tr>
               )
             })}

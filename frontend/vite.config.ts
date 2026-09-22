@@ -9,10 +9,17 @@ export default defineConfig({
   root: rootDir,
   plugins: [tailwindcss(), react()],
   server: {
+    host: true,
+    port: 5173,
+    strictPort: true,
+    allowedHosts: [
+      '.trycloudflare.com',
+      'tcp-begins-unity-network.trycloudflare.com',
+      'localhost',
+    ],
     proxy: {
       '/api': {
-        // 与 backend 默认 PORT=3002 一致（见 vault-os1.1/backend/src/index.ts）
-        target: 'http://localhost:3002',
+        target: 'http://127.0.0.1:3002',
         changeOrigin: true,
       },
     },

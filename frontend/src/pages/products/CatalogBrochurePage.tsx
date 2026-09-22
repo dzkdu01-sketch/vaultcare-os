@@ -44,10 +44,10 @@ export function CatalogBrochurePage() {
         const raw = e.message || ''
         if (e.status === 404 && raw.includes('Cannot GET') && raw.includes('catalog')) {
           msg =
-            '图册接口不可用（404）。当前连接的 API 可能不是本仓库最新后端（缺 /product/catalog）。请在 vault-os1.1/backend 执行 npm run dev（默认端口 3002，与 Vite 代理一致）；若仍占用端口，可设置 PORT=3003 并同步修改 frontend/vite.config.ts 的 proxy.target。'
+            '图册接口不可用（404）。'
         } else if (raw.trimStart().startsWith('<')) {
           msg = raw.includes('Cannot GET')
-            ? '接口返回 404（后端未注册该路由或代理未指向当前后端）。请重启 vault-os1.1 后端后再试。'
+            ? '接口返回 404。'
             : '服务器返回了 HTML 错误页，请检查后端日志与 API 地址。'
         } else {
           try {

@@ -201,7 +201,7 @@ productRouter.get('/items', (req: Request, res: Response) => {
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
   const pageNum = Math.max(1, parseInt(page) || 1)
-  const pageSize = Math.min(100, Math.max(1, parseInt(page_size) || 20))
+  const pageSize = Math.min(150, Math.max(1, parseInt(page_size) || 20))
   const offset = (pageNum - 1) * pageSize
 
   const totalRow = db.get(`SELECT COUNT(*) as count FROM products p ${where}`, params)
@@ -339,7 +339,8 @@ productRouter.post('/items', (req: Request, res: Response) => {
 
   const db = getDb()
   const id = `prod-${uuidv4().slice(0, 8)}`
-  const sku = generateSku()
+  const requestedSku = typeof req.body?.sku === 'string' ? req.body.sku.trim() : ''
+  const sku = requestedSku || generateSku()
   const ts = now()
 
   try {
